@@ -1,0 +1,134 @@
+{
+  "name": "qa-testcase-workflow",
+  "version": "0.1.0",
+  "displayName": "QA 测试用例工作流",
+  "description": "测试工程师测试用例管理的完整工作流自动化，支持 PRD 分析、变更分析、用例生成、评审和归档",
+  "author": {
+    "name": "zengzhihua",
+    "email": "1036181341@qq.com",
+    "url": "https://github.com/run-noob"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/run-noob/qa-testcase-workflow",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/run-noob/qa-testcase-workflow.git"
+  },
+  "bugs": {
+    "url": "https://github.com/run-noob/qa-testcase-workflow/issues"
+  },
+  "keywords": [
+    "qa",
+    "testing",
+    "test-case",
+    "test-management",
+    "workflow",
+    "automation",
+    "prd-analysis",
+    "测试用例",
+    "测试管理",
+    "自动化",
+    "工作流"
+  ],
+  "category": "testing",
+  "skills": [
+    {
+      "name": "qa-workflow",
+      "path": "skills/qa-workflow",
+      "description": "QA工作流总控，自动编排执行PRD分析、变更分析、用例生成、评审、合并归档的完整流程",
+      "primary": true,
+      "version": "0.1.0"
+    },
+    {
+      "name": "qa-prd-analysis",
+      "path": "skills/qa-prd-analysis",
+      "description": "分析PRD文档，输出结构化需求分析报告、功能点、测试关注点与风险项",
+      "version": "0.1.0"
+    },
+    {
+      "name": "qa-change-diff",
+      "path": "skills/qa-change-diff",
+      "description": "分析需求变更对存量用例的影响，生成变更差异报告",
+      "version": "0.1.0"
+    },
+    {
+      "name": "qa-testcase-generation",
+      "path": "skills/qa-testcase-generation",
+      "description": "基于分析结果自动生成结构化测试用例",
+      "version": "0.1.0"
+    },
+    {
+      "name": "qa-testcase-review",
+      "path": "skills/qa-testcase-review",
+      "description": "自动评审用例质量，识别问题并生成评审报告",
+      "version": "0.1.0"
+    },
+    {
+      "name": "qa-testcase-merge",
+      "path": "skills/qa-testcase-merge",
+      "description": "将新用例合并到全量库，归档当前需求文档",
+      "version": "0.1.0"
+    }
+  ],
+  "entrypoint": "skills/qa-workflow/SKILL.md",
+  "requirements": {
+    "minClaudeVersion": "4.0.0",
+    "platform": ["win32", "darwin", "linux"],
+    "directories": [
+      {
+        "path": "prd/current",
+        "required": true,
+        "description": "当前需求PRD文档目录"
+      },
+      {
+        "path": "prd/archive",
+        "required": true,
+        "description": "归档需求目录"
+      },
+      {
+        "path": "test-cases",
+        "required": true,
+        "description": "全量测试用例库"
+      },
+      {
+        "path": "glossary",
+        "required": false,
+        "description": "业务术语表（强烈推荐）"
+      },
+      {
+        "path": "standards",
+        "required": false,
+        "description": "测试规范文档（推荐）"
+      }
+    ]
+  },
+  "documentation": {
+    "readme": "README.md",
+    "guide": "CLAUDE.md",
+    "changelog": "CHANGELOG.md"
+  },
+  "icon": "icon.svg",
+  "screenshots": [
+    "screenshots/workflow-progress.png",
+    "screenshots/error-handling.png"
+  ],
+  "features": [
+    "一键执行完整的5步测试用例管理流程",
+    "支持部分执行、断点恢复、错误处理",
+    "智能目录结构验证和自动创建",
+    "实时进度可视化和状态追踪",
+    "自动PRD分析和功能点提取",
+    "存量用例变更影响分析",
+    "基于模板的结构化用例生成",
+    "自动化用例质量评审",
+    "安全的用例合并和归档机制"
+  ],
+  "languages": ["zh-CN", "en"],
+  "tags": [
+    "productivity",
+    "automation",
+    "testing",
+    "qa",
+    "workflow-automation"
+  ]
+}
