@@ -1,0 +1,23 @@
+{
+  "name": "qa-plugins",
+  "description": "Development marketplace for QA core skills library",
+  "owner": {
+    "name": "zengzhihua",
+    "email": "1036181341@qq.com"
+  },
+  "plugins": [
+    {
+      "name": "qa-testcase-workflow",
+      "description": "Core qa workflow skills library for Claude Code",
+      "version": "0.1.0",
+      "source": {
+        "source": "github",
+        "repo": "run-noob/qa-testcase-workflow"
+      },
+      "author": {
+        "name": "zengzhihua",
+        "email": "1036181341@qq.com"
+      }
+    }
+  ]
+}
