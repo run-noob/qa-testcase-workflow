@@ -41,20 +41,21 @@
 |----------|----------|------|
 | {module_name} | 新增/修改/关联 | {impact_reason} |
 
-## 5. 风险与待确认项
-### 5.1 需求模糊点
-- [需求模糊: {ambiguous_point}，建议确认: {confirmation_question}]
-
-### 5.2 潜在冲突点
-- {conflict}
-
-### 5.3 可能遗漏场景
-- {missing_scenario}
-
-### 5.4 待补充资料
-- {missing_artifact}
-
-## 6. 术语说明
+## 5. 术语说明
 | 术语 | 说明 |
 |------|------|
 | {term} | {definition} |
+
+## 6. 风险与待确认项
+### 6.1 需求模糊点
+- [需求模糊: {ambiguous_point}，建议确认: {confirmation_question}]
+
+### 6.2 潜在冲突点
+- {conflict}
+
+### 6.3 可能遗漏场景
+- {missing_scenario}
+
+### 6.4 待补充资料
+- {missing_artifact}
+
