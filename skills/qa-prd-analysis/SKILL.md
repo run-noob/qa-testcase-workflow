@@ -13,7 +13,7 @@ description: 分析 prd/current 下的 PRD 文档，输出结构化需求分析�
 - `/qa-prd-analysis prd/current/order-refund-feature.md`
 - `/qa-prd-analysis 退款需求`
 
-> 💡 本 Skill 也可以作为 `/qa-workflow` 工作流的一部分自动执行。如需执行完整流程（PRD分析 → 变更分析 → 用例生成 → 评审 → 合并归档），建议使用 `/qa-workflow` 一键执行。
+> 💡 本 Skill 也可以作为 `/qa-testcase-workflow` 工作流的一部分自动执行。如需执行完整流程（PRD分析 → 变更分析 → 用例生成 → 评审 → 合并归档），建议使用 `/qa-testcase-workflow` 一键执行。
 
 ## 输入参数
 - `$ARGUMENTS` 可选。
@@ -101,10 +101,9 @@ description: 分析 prd/current 下的 PRD 文档，输出结构化需求分析�
 ## 2. 功能模块清单
 ## 3. 组件级交互说明
 ## 4. 核心业务流程
-## 5. 测试关注点
-## 6. 涉及模块清单
-## 7. 术语说明
-## 8. 风险与待确认项
+## 5. 涉及模块清单
+## 6. 术语说明
+## 7. 风险与待确认项
 ```
 
 其中必须包含：

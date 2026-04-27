@@ -59,7 +59,7 @@
 
 ## 功能特性
 
-### 🎯 总控工作流（`/qa-workflow`）
+### 🎯 总控工作流（`/qa-testcase-workflow`）
 
 一键执行完整的 5 步测试用例管理流程：
 
@@ -205,7 +205,7 @@ EOF
 
 或者，在执行工作流时选择自动创建：
 ```bash
-/qa-workflow 退款需求
+/qa-testcase-workflow 退款需求
 # 如果目录缺失，会提示选择自动创建
 ```
 
@@ -226,7 +226,7 @@ cp prd-images/* prd/current/images/
 
 2. **执行完整工作流**
 ```bash
-/qa-workflow 退款需求
+/qa-testcase-workflow 退款需求
 ```
 
 3. **查看结果**
@@ -256,7 +256,7 @@ ls test-cases/
 **适用**：收到新 PRD，需要完整执行从分析到归档的所有步骤
 
 ```bash
-/qa-workflow 会员订阅需求
+/qa-testcase-workflow 会员订阅需求
 ```
 
 **预期输出**：
@@ -290,7 +290,7 @@ ls test-cases/
 **适用**：只需要快速生成用例看看覆盖范围，暂不评审和合并
 
 ```bash
-/qa-workflow --steps 1-3 活动页面改版
+/qa-testcase-workflow --steps 1-3 活动页面改版
 ```
 
 **效果**：只执行前 3 步（分析、变更、生成），完成后停止
@@ -300,7 +300,7 @@ ls test-cases/
 **适用**：之前手动执行了前 3 步，现在想继续评审和合并
 
 ```bash
-/qa-workflow --from 4 活动页面改版
+/qa-testcase-workflow --from 4 活动页面改版
 ```
 
 **效果**：从步骤 4 开始执行，前提是步骤 1-3 的产物存在
@@ -311,12 +311,12 @@ ls test-cases/
 
 ```bash
 # 第一次执行（失败）
-/qa-workflow 退款需求
+/qa-testcase-workflow 退款需求
 # ... 步骤 3 失败 ...
 # 用户选择 [3] abort
 
 # 修复问题后（例如补充术语表）
-/qa-workflow --resume
+/qa-testcase-workflow --resume
 
 # 输出：
 检测到未完成的工作流：退款需求
@@ -335,7 +335,7 @@ ls test-cases/
 /qa-testcase-generation 退款需求
 
 # 手动修改用例后，继续后续步骤
-/qa-workflow --from 4 退款需求
+/qa-testcase-workflow --from 4 退款需求
 ```
 
 ---
@@ -345,7 +345,7 @@ ls test-cases/
 ### 总控工作流命令
 
 ```bash
-/qa-workflow [需求名称] [选项]
+/qa-testcase-workflow [需求名称] [选项]
 ```
 
 **参数说明**：
@@ -365,22 +365,22 @@ ls test-cases/
 
 ```bash
 # 完整流程
-/qa-workflow 退款需求
+/qa-testcase-workflow 退款需求
 
 # 只执行前3步
-/qa-workflow --steps 1-3 退款需求
+/qa-testcase-workflow --steps 1-3 退款需求
 
 # 从步骤3开始
-/qa-workflow --from 3 退款需求
+/qa-testcase-workflow --from 3 退款需求
 
 # 只执行步骤2和4
-/qa-workflow --only 2,4 退款需求
+/qa-testcase-workflow --only 2,4 退款需求
 
 # 断点恢复
-/qa-workflow --resume
+/qa-testcase-workflow --resume
 
 # 详细日志模式
-/qa-workflow --verbose 退款需求
+/qa-testcase-workflow --verbose 退款需求
 ```
 
 ### 独立 Skill 命令
@@ -436,7 +436,7 @@ ls test-cases/
 │   └── review-checklist.md
 │
 └── skills/                        # 工作流Skills定义
-    ├── qa-workflow/
+    ├── qa-testcase-workflow/
     ├── qa-prd-analysis/
     ├── qa-change-diff/
     ├── qa-testcase-generation/
@@ -462,7 +462,7 @@ ls test-cases/
 
 **执行命令**：
 ```bash
-/qa-workflow 退款需求
+/qa-testcase-workflow 退款需求
 ```
 
 **产出**：
@@ -478,7 +478,7 @@ ls test-cases/
 
 **执行命令**：
 ```bash
-/qa-workflow --steps 1-3 会员订阅需求
+/qa-testcase-workflow --steps 1-3 会员订阅需求
 ```
 
 **产出**：
@@ -492,7 +492,7 @@ ls test-cases/
 
 **第一次执行**：
 ```bash
-/qa-workflow 活动页面改版
+/qa-testcase-workflow 活动页面改版
 # ... 步骤 3 失败 ...
 # 错误：未找到必要的术语定义
 # 用户选择 [3] abort
@@ -506,7 +506,7 @@ echo "### 活动页\n- 定义：..." >> glossary/business-terms.md
 
 **恢复执行**：
 ```bash
-/qa-workflow --resume
+/qa-testcase-workflow --resume
 # 检测到未完成的工作流，从步骤 3 重试
 # ... 成功完成 ...
 ```
@@ -601,7 +601,7 @@ prd/current/images/
 **解决**：
 ```bash
 # 选项 1：执行工作流时选择自动创建
-/qa-workflow 退款需求
+/qa-testcase-workflow 退款需求
 # 提示时选择 [1] 自动创建缺失的目录
 
 # 选项 2：手动创建
@@ -633,7 +633,7 @@ cp your-prd.md prd/current/退款需求.md
 ```bash
 # 删除损坏的状态文件，重新执行
 rm prd/current/.workflow-state.json
-/qa-workflow 退款需求
+/qa-testcase-workflow 退款需求
 ```
 
 ### 问题 4：用例 ID 冲突
@@ -663,7 +663,7 @@ rm prd/current/.workflow-state.json
 1. 查看评审报告：`cat prd/current/output/test-cases/review-report.md`
 2. 根据问题清单修改用例文件
 3. 重新执行评审：`/qa-testcase-review 退款需求`
-4. 确认通过后继续：`/qa-workflow --from 5 退款需求`
+4. 确认通过后继续：`/qa-testcase-workflow --from 5 退款需求`
 
 ---
 
@@ -783,6 +783,6 @@ rm prd/current/.workflow-state.json
 
 **如有问题或建议，欢迎提交 Issue 或 PR！**
 
-[GitHub 仓库](https://github.com/your-repo/qa-testcase-workflow) • [文档中心](https://docs.example.com/qa-workflow) • [问题反馈](https://github.com/your-repo/qa-testcase-workflow/issues)
+[GitHub 仓库](https://github.com/your-repo/qa-testcase-workflow) • [文档中心](https://docs.example.com/qa-testcase-workflow) • [问题反馈](https://github.com/your-repo/qa-testcase-workflow/issues)
 
 </div>

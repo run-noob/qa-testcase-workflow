@@ -32,16 +32,16 @@
     "自动化",
     "工作流"
   ],
-  "mainSkill": "qa-workflow",
+  "mainSkill": "qa-testcase-workflow",
   "skills": [
     {
-      "name": "qa-workflow",
-      "path": "skills/qa-workflow",
+      "name": "qa-testcase-workflow",
+      "path": "skills/qa-testcase-workflow",
       "description": "工作流总控，自动编排执行完整的5步测试用例管理流程",
       "primary": true,
       "version": "0.1.0",
       "commands": [
-        "/qa-workflow"
+        "/qa-testcase-workflow"
       ],
       "aliases": [
         "workflow",

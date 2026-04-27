@@ -27,7 +27,7 @@
 claude skills list
 
 # 应该看到以下输出：
-# ✓ qa-workflow (QA工作流总控)
+# ✓ qa-testcase-workflow (QA工作流总控)
 # ✓ qa-prd-analysis (PRD分析)
 # ✓ qa-change-diff (变更分析)
 # ✓ qa-testcase-generation (用例生成)
@@ -56,7 +56,7 @@ standards/
 ### 3. 执行第一个工作流
 
 ```
-/qa-workflow 退款需求
+/qa-testcase-workflow 退款需求
 ```
 
 ---
@@ -93,7 +93,7 @@ node_modules/
 ```json
 {
   "skills": {
-    "qa-workflow": {
+    "qa-testcase-workflow": {
       "enabled": true,
       "alias": ["workflow", "qa"],
       "description": "QA测试用例工作流总控"
@@ -152,7 +152,7 @@ node_modules/
 #### 方式 1：直接调用（推荐）
 
 ```
-/qa-workflow 退款需求
+/qa-testcase-workflow 退款需求
 ```
 
 #### 方式 2：使用自然语言
@@ -161,7 +161,7 @@ node_modules/
 请帮我执行完整的测试用例工作流，需求名称是退款需求
 ```
 
-Claude Code 会自动识别并调用 `/qa-workflow`。
+Claude Code 会自动识别并调用 `/qa-testcase-workflow`。
 
 #### 方式 3：使用别名（需配置）
 
@@ -222,24 +222,24 @@ Claude Code 会读取 `prd/current/.workflow-state.json` 并显示：
 
 ## Skills 详解
 
-### Skill 1: qa-workflow（总控）
+### Skill 1: qa-testcase-workflow（总控）
 
 **功能**：一键执行完整的 5 步测试用例管理流程
 
 **调用方式**：
 ```
-/qa-workflow 需求名称 [选项]
+/qa-testcase-workflow 需求名称 [选项]
 ```
 
 **常用选项**：
 
 | 选项 | 说明 | 示例 |
 |------|------|------|
-| `--steps 1-3` | 只执行步骤 1 到 3 | `/qa-workflow --steps 1-3 退款需求` |
-| `--from 3` | 从步骤 3 开始执行 | `/qa-workflow --from 3 退款需求` |
-| `--only 2,4` | 只执行步骤 2 和 4 | `/qa-workflow --only 2,4 退款需求` |
-| `--resume` | 从上次中断处继续 | `/qa-workflow --resume` |
-| `--verbose` | 显示详细日志 | `/qa-workflow --verbose 退款需求` |
+| `--steps 1-3` | 只执行步骤 1 到 3 | `/qa-testcase-workflow --steps 1-3 退款需求` |
+| `--from 3` | 从步骤 3 开始执行 | `/qa-testcase-workflow --from 3 退款需求` |
+| `--only 2,4` | 只执行步骤 2 和 4 | `/qa-testcase-workflow --only 2,4 退款需求` |
+| `--resume` | 从上次中断处继续 | `/qa-testcase-workflow --resume` |
+| `--verbose` | 显示详细日志 | `/qa-testcase-workflow --verbose 退款需求` |
 
 **Claude Code 增强功能**：
 
@@ -506,8 +506,8 @@ Claude Code 会读取 `prd/current/.workflow-state.json` 并显示：
 
 **症状**：
 ```
-/qa-workflow 退款需求
-# 提示：Unknown command: qa-workflow
+/qa-testcase-workflow 退款需求
+# 提示：Unknown command: qa-testcase-workflow
 ```
 
 **解决**：
@@ -532,7 +532,7 @@ Claude Code 会读取 `prd/current/.workflow-state.json` 并显示：
 
 2. 如果状态文件显示 `status: "in_progress"`，可以强制恢复：
 ```
-/qa-workflow --resume
+/qa-testcase-workflow --resume
 ```
 
 3. 如果仍然卡住，删除状态文件重新执行：
@@ -566,7 +566,7 @@ Claude Code 会读取 `prd/current/.workflow-state.json` 并显示：
 4. **分步执行并人工审查**：
 ```
 # 先生成草稿
-/qa-workflow --steps 1-3 退款需求
+/qa-testcase-workflow --steps 1-3 退款需求
 
 # 人工审查后，调整 PRD 和术语表
 
@@ -574,7 +574,7 @@ Claude Code 会读取 `prd/current/.workflow-state.json` 并显示：
 /qa-testcase-generation 退款需求
 
 # 继续后续步骤
-/qa-workflow --from 4 退款需求
+/qa-testcase-workflow --from 4 退款需求
 ```
 
 ### Q4: 合并时用例 ID 冲突
@@ -605,7 +605,7 @@ Claude Code 会读取 `prd/current/.workflow-state.json` 并显示：
 # TC-ORDER-002 → TC-ORDER-102
 
 # 继续合并
-/qa-workflow --from 5 退款需求
+/qa-testcase-workflow --from 5 退款需求
 ```
 
 ### Q5: 评审报告过于严格
@@ -675,7 +675,7 @@ for req in "${requirements[@]}"; do
   echo "处理需求：$req"
 
   # 执行工作流
-  claude exec "/qa-workflow $req"
+  claude exec "/qa-testcase-workflow $req"
 
   # 等待完成
   while [ -f "prd/current/.workflow-state.json" ]; do
@@ -708,7 +708,7 @@ on:
       - 'prd/current/*.md'
 
 jobs:
-  qa-workflow:
+  qa-testcase-workflow:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -727,7 +727,7 @@ jobs:
 
       - name: Run QA Workflow
         run: |
-          claude exec "/qa-workflow ${{ steps.req.outputs.name }}"
+          claude exec "/qa-testcase-workflow ${{ steps.req.outputs.name }}"
 
       - name: Commit generated test cases
         run: |
@@ -816,7 +816,7 @@ echo "操作完成"
 
 ```
 1. 放置 PRD → prd/current/{需求名}.md
-2. 执行工作流 → /qa-workflow {需求名}
+2. 执行工作流 → /qa-testcase-workflow {需求名}
 3. 人工确认 → Step 5 合并前检查
 4. 查看结果 → test-cases/ 和 prd/archive/
 ```

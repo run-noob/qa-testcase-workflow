@@ -49,14 +49,14 @@
   ],
   "category": "testing",
   "skills": [
-    "skills/qa-workflow",
+    "skills/qa-testcase-workflow",
     "skills/qa-prd-analysis",
     "skills/qa-change-diff",
     "skills/qa-testcase-generation",
     "skills/qa-testcase-review",
     "skills/qa-testcase-merge"
   ],
-  "entrypoint": "skills/qa-workflow/SKILL.md",
+  "entrypoint": "skills/qa-testcase-workflow/SKILL.md",
   "requirements": {
     "minClaudeVersion": "4.0.0",
     "directories": [
@@ -98,12 +98,12 @@ license: MIT
 type: workflow
 
 # 主入口
-main_skill: qa-workflow
+main_skill: qa-testcase-workflow
 
 # 所有技能列表
 skills:
-  - name: qa-workflow
-    path: skills/qa-workflow
+  - name: qa-testcase-workflow
+    path: skills/qa-testcase-workflow
     description: "工作流总控"
     primary: true
   - name: qa-prd-analysis
@@ -272,7 +272,7 @@ codebuddy plugin publish .
 
 ### 3. Skills 定义 ✅
 
-- [x] **skills/qa-workflow/SKILL.md**
+- [x] **skills/qa-testcase-workflow/SKILL.md**
   - [x] 总控工作流逻辑完整
   - [x] 目录验证逻辑详细
   - [x] 参数说明清晰
@@ -300,12 +300,12 @@ codebuddy plugin publish .
 
 ### 4. 辅助文档 ✅
 
-- [x] **skills/qa-workflow/workflow-state-schema.md**
+- [x] **skills/qa-testcase-workflow/workflow-state-schema.md**
   - [x] Schema 定义完整
   - [x] 字段说明详细
   - [x] 示例充分
 
-- [x] **skills/qa-workflow/error-handling-guide.md**
+- [x] **skills/qa-testcase-workflow/error-handling-guide.md**
   - [x] 常见错误覆盖充分 (10+)
   - [x] 解决方案详细
   - [x] 恢复策略明确
@@ -529,7 +529,7 @@ cp -r ../skills .
 
 # 3. 执行工作流（会自动创建目录）
 # 在 Claude Code 中执行：
-/qa-workflow 测试需求
+/qa-testcase-workflow 测试需求
 
 # 4. 验证结果
 # - 检查所有目录是否创建

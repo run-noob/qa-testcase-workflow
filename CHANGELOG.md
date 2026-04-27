@@ -12,7 +12,7 @@
 ### 计划中的功能
 - 支持多个需求并发执行
 - 执行历史查询功能 (`--history`)
-- 配置文件支持 (`.qa-workflow-config.yml`)
+- 配置文件支持 (`.qa-testcase-workflow-config.yml`)
 - Web 可视化 Dashboard
 - 与 Jira/GitLab/TestRail 集成
 - 智能推荐：基于历史相似需求推荐用例模板
@@ -29,7 +29,7 @@
 ### ✨ 新增功能
 
 #### 核心工作流
-- **总控工作流** (`/qa-workflow`)：一键执行完整的 5 步测试用例管理流程
+- **总控工作流** (`/qa-testcase-workflow`)：一键执行完整的 5 步测试用例管理流程
   - Step 1: PRD 分析
   - Step 2: 变更影响分析
   - Step 3: 测试用例生成

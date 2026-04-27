@@ -13,7 +13,7 @@ description: 基于 PRD 分析报告和变更影响分析结果，生成流程�
 - `/qa-testcase-generation 退款需求`
 - `/qa-testcase-generation payment`
 
-> 💡 本 Skill 也可以作为 `/qa-workflow` 工作流的一部分自动执行。如需执行完整流程（PRD分析 → 变更分析 → 用例生成 → 评审 → 合并归档），建议使用 `/qa-workflow` 一键执行。
+> 💡 本 Skill 也可以作为 `/qa-testcase-workflow` 工作流的一部分自动执行。如需执行完整流程（PRD分析 → 变更分析 → 用例生成 → 评审 → 合并归档），建议使用 `/qa-testcase-workflow` 一键执行。
 
 ## 输入参数
 - `$ARGUMENTS` 可选。
