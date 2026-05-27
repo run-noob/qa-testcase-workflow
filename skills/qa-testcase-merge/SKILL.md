@@ -13,8 +13,6 @@ description: 将当前需求的测试用例合并到全量用例库，并在确�
 - `/qa-testcase-merge 退款需求`
 - `/qa-testcase-merge prd/current/output/test-cases/review-report.md`
 
-> 💡 本 Skill 也可以作为 `/qa-testcase-workflow` 工作流的一部分自动执行。如需执行完整流程（PRD分析 → 变更分析 → 用例生成 → 评审 → 合并归档），建议使用 `/qa-testcase-workflow` 一键执行。
-
 ## 关键建议
 本 Skill 采用“两阶段执行”：
 1. **先生成合并计划**：分析将新增、修改、废弃哪些文件与用例。

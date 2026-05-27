@@ -13,8 +13,6 @@ description: 审查当前需求生成的测试用例质量，检查完整性、�
 - `/qa-testcase-review 退款需求`
 - `/qa-testcase-review prd/current/output/test-cases/test-case-summary.md`
 
-> 💡 本 Skill 也可以作为 `/qa-testcase-workflow` 工作流的一部分自动执行。如需执行完整流程（PRD分析 → 用例生成 → 评审 → 合并归档），建议使用 `/qa-testcase-workflow` 一键执行。
-
 ## 输入参数
 - `$ARGUMENTS` 可选。
 - 未传参数时，默认评审 `prd/current/output/test-cases/` 下当前需求的所有产出文件。
