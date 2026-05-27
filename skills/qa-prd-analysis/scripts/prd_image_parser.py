@@ -1,0 +1,696 @@
+#!/usr/bin/env python3
+"""
+Parse PRD images into structured textual descriptions.
+
+Features:
+- Parse all images in a PRD markdown file, or one specific image via --image-path.
+- Build per-image context from markdown nearby lines and heading chain.
+- Build one PRD-level summary and reuse it across image analyses.
+- Cache PRD summary and image analysis results to reduce repeated LLM calls.
+- Emit machine-readable JSON and human-readable Markdown reports.
+"""
+
+from __future__ import annotations
+
+import argparse
+import base64
+import hashlib
+import json
+import os
+import re
+import sys
+import time
+import openai
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+from urllib import error, request
+
+
+SUMMARY_PROMPT_VERSION = "v1"
+IMAGE_PROMPT_VERSION = "v1"
+DEFAULT_MAX_IMAGES = 5
+DEFAULT_RETRY = 2
+DEFAULT_TIMEOUT = 60
+CONTEXT_WINDOW = 20
+
+
+@dataclass
+class ImageRef:
+    image_id: str
+    alt: str
+    raw_path: str
+    resolved_path: Path
+    line_no: int
+    raw_line: str
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Parse PRD images into textual descriptions."
+    )
+    parser.add_argument("--prd-file", required=True, help="Path to PRD markdown file.")
+    parser.add_argument("--output-dir", required=False, help="Output directory.")
+    parser.add_argument("--image-path", help="Optional single image path from PRD (relative or absolute).")
+    parser.add_argument("--model", default="google/gemini-3-flash-preview", help="Model used for summary and image analysis.")
+    parser.add_argument("--max-images", type=int, default=DEFAULT_MAX_IMAGES, help="Max image count in full mode.")
+    parser.add_argument(
+        "--detail-level",
+        choices=["brief", "standard", "deep"],
+        default="standard",
+        help="Description detail level.",
+    )
+    parser.add_argument("--retry", type=int, default=DEFAULT_RETRY, help="Retry times per model call.")
+    parser.add_argument(
+        "--on-error",
+        choices=["abort", "skip"],
+        default="skip",
+        help="Error handling strategy.",
+    )
+    parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT, help="Timeout seconds per model call.")
+    parser.add_argument("--dry-run", action="store_true", help="Only scan and prepare outputs, no model calls.")
+    parser.add_argument(
+        "--include-image-snippet",
+        action="store_true",
+        help="Include raw markdown image line in outputs.",
+    )
+    parser.add_argument("--emit-json", action="store_true", help="Emit JSON output.")
+    parser.add_argument("--emit-md", action="store_true", help="Emit Markdown output.")
+    parser.add_argument(
+        "--force-refresh",
+        action="store_true",
+        help="Ignore caches and force regenerate summary and image analysis.",
+    )
+    return parser.parse_args()
+
+
+def sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def load_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
+
+
+def ensure_dir(path: Path) -> None:
+    path.mkdir(parents=True, exist_ok=True)
+
+
+def extract_markdown_images(prd_text: str, prd_dir: Path) -> List[ImageRef]:
+    # 模式定义（注意：字符类 [^>] 和 [^)] 默认匹配换行符，无需 DOTALL）
+    md_pattern = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
+    html_pattern = re.compile(r"<img\s+([^>]*?)\s*/?\s*>", re.IGNORECASE)
+
+    refs: List[ImageRef] = []
+    idx = 1
+
+    # 收集所有匹配的 (起始位置, 匹配对象, 类型)
+    matches = []
+
+    # Markdown 图片
+    for match in md_pattern.finditer(prd_text):
+        matches.append((match.start(), 'md', match))
+
+    # HTML 图片
+    for match in html_pattern.finditer(prd_text):
+        matches.append((match.start(), 'html', match))
+
+    # 按起始位置排序
+    matches.sort(key=lambda x: x[0])
+
+    for start_pos, img_type, match in matches:
+        # 计算行号（基于原始文本中的换行符）
+        line_no = prd_text[:start_pos].count('\n') + 1
+
+        if img_type == 'md':
+            alt = match.group(1).strip()
+            raw_path = cleanup_markdown_link_path(match.group(2).strip())
+        else:  # html
+            attr_str = match.group(1)
+            src_match = re.search(r'src\s*=\s*(["\'])(.*?)\1', attr_str, re.IGNORECASE)
+            alt_match = re.search(r'alt\s*=\s*(["''])(.*?)\1', attr_str, re.IGNORECASE)
+            if not src_match:
+                continue  # 缺少 src 则跳过
+            raw_path = cleanup_markdown_link_path(src_match.group(2).strip())
+            alt = alt_match.group(2).strip() if alt_match else ""
+
+        resolved = (prd_dir / raw_path).resolve() if not Path(raw_path).is_absolute() else Path(raw_path).resolve()
+        if not resolved.exists():
+            print(f"[WARNING] image path: {resolved} does not exists")
+            continue
+        # raw_line 使用整个匹配到的原始字符串（可能包含换行）
+        raw_line = match.group(0)
+
+        refs.append(
+            ImageRef(
+                image_id=f"IMG-{idx:03d}",
+                alt=alt,
+                raw_path=raw_path,
+                resolved_path=resolved,
+                line_no=line_no,
+                raw_line=raw_line,
+            )
+        )
+        idx += 1
+
+    return refs
+
+
+def cleanup_markdown_link_path(raw: str) -> str:
+    candidate = raw.strip().strip("<>").strip()
+    if " " in candidate and '"' in candidate:
+        candidate = candidate.split('"')[0].strip()
+    if " " in candidate and "'" in candidate:
+        candidate = candidate.split("'")[0].strip()
+    return candidate
+
+
+def resolve_single_image_path(prd_dir: Path, user_image_path: str, cwd: Path) -> Path:
+    candidate = Path(user_image_path)
+    if candidate.is_absolute() and candidate.exists():
+        return candidate.resolve()
+    prd_candidate = (prd_dir / candidate).resolve()
+    if prd_candidate.exists():
+        return prd_candidate
+    cwd_candidate = (cwd / candidate).resolve()
+    if cwd_candidate.exists():
+        return cwd_candidate
+    return prd_candidate
+
+
+def heading_chain_until_line(prd_text: str, target_line: int) -> List[str]:
+    headings: Dict[int, str] = {}
+    for line_no, line in enumerate(prd_text.splitlines(), start=1):
+        if line_no > target_line:
+            break
+        m = re.match(r"^(#{1,6})\s+(.*)$", line.strip())
+        if not m:
+            continue
+        level = len(m.group(1))
+        title = m.group(2).strip()
+        headings[level] = title
+        for key in list(headings.keys()):
+            if key > level:
+                headings.pop(key, None)
+    return [headings[k] for k in sorted(headings.keys())]
+
+
+def local_context(prd_text: str, line_no: int, window: int = CONTEXT_WINDOW) -> str:
+    lines = prd_text.splitlines()
+    start = max(1, line_no - window)
+    end = min(len(lines), line_no + window)
+    out = []
+    for idx in range(start, end + 1):
+        out.append(f"{idx:04d}: {lines[idx - 1]}")
+    return "\n".join(out)
+
+
+def cache_paths(cache_dir: Path, key: str, prefix: str) -> Tuple[Path, Path]:
+    data = cache_dir / f"{prefix}-{key}.json"
+    meta = cache_dir / f"{prefix}-{key}.meta.json"
+    return data, meta
+
+
+def read_json(path: Path) -> Dict[str, Any]:
+    with path.open("r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def write_json(path: Path, data: Dict[str, Any]) -> None:
+    with path.open("w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def file_summary_key(prd_text: str, model: str) -> str:
+    payload = json.dumps(
+        {
+            "prd_sha": sha256_text(prd_text),
+            "summary_prompt_version": SUMMARY_PROMPT_VERSION,
+            "model": model,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    return sha256_text(payload)
+
+
+def image_analysis_key(
+    image_sha: str,
+    local_context_text: str,
+    file_summary_text: str,
+    model: str,
+    detail_level: str,
+) -> str:
+    payload = json.dumps(
+        {
+            "image_sha": image_sha,
+            "local_context_sha": sha256_text(local_context_text),
+            "file_summary_sha": sha256_text(file_summary_text),
+            "detail_level": detail_level,
+            "image_prompt_version": IMAGE_PROMPT_VERSION,
+            "model": model,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    return sha256_text(payload)
+
+
+# def _extract_output_text(resp: Dict[str, Any]) -> str:
+#     if isinstance(resp.get("output_text"), str) and resp["output_text"].strip():
+#         return resp["output_text"].strip()
+#
+#     output = resp.get("output", [])
+#     texts: List[str] = []
+#     if isinstance(output, list):
+#         for item in output:
+#             content = item.get("content", []) if isinstance(item, dict) else []
+#             if not isinstance(content, list):
+#                 continue
+#             for c in content:
+#                 if not isinstance(c, dict):
+#                     continue
+#                 ctype = c.get("type")
+#                 if ctype in ("output_text", "text"):
+#                     value = c.get("text")
+#                     if isinstance(value, str) and value.strip():
+#                         texts.append(value.strip())
+#     return "\n".join(texts).strip()
+
+
+def _openai_responses_call(
+    model: str,
+    messages: List[Dict[str, Any]],
+    timeout: int,
+) -> str:
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    api_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1/completions")
+    if not api_key:
+        raise RuntimeError("Missing OPENAI_API_KEY.")
+    client = openai.OpenAI(api_key=api_key, base_url=api_url)
+
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=0.2
+        )
+        # 提取回复内容
+        return response.choices[0].message.content
+    except openai.APIError as e:
+        print(f"OpenAI API 错误: {e}")
+        return None
+    except Exception as e:
+        print(f"发生未知错误: {e}")
+        return None
+
+
+def call_with_retry(fn, retry: int, on_error: str):
+    last_err: Optional[Exception] = None
+    for i in range(retry + 1):
+        try:
+            return fn()
+        except Exception as e:  # pylint: disable=broad-except
+            last_err = e
+            if i < retry:
+                time.sleep(min(2 ** i, 4))
+                continue
+            if on_error == "abort":
+                raise
+    raise RuntimeError(str(last_err) if last_err else "Unknown error.")
+
+
+def generate_prd_summary(prd_text: str, model: str, timeout: int, retry: int, on_error: str) -> str:
+    truncated = prd_text[:14000]
+    system_prompt = (
+        "你是资深测试分析师。请基于输入的PRD文本输出精炼文件摘要，"
+        "用于后续图片语义理解。只输出摘要正文，不要解释。"
+    )
+    user_prompt = (
+        "请输出以下内容：\n"
+        "1) 需求背景和目标\n"
+        "2) 核心功能和关键流程\n"
+        "3) 主要页面/模块\n"
+        "4) 关键业务规则/约束\n"
+        "5) 测试高风险点\n\n"
+        "PRD文本如下：\n"
+        f"{truncated}"
+    )
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+    return call_with_retry(
+        lambda: _openai_responses_call(model=model, messages=messages, timeout=timeout),
+        retry=retry,
+        on_error=on_error,
+    )
+
+
+def build_image_prompt(
+    detail_level: str,
+    file_summary: str,
+    heading_chain: List[str],
+    local_ctx: str,
+    image_alt: str,
+    image_raw_line: str,
+) -> str:
+    detail_map = {
+        "brief": "简洁描述，优先关键点。",
+        "standard": "标准深度，覆盖关键细节与边界信息。",
+        "deep": "深入描述，尽可能细化组件、流程与条件关系。",
+    }
+    heading_text = " > ".join(heading_chain) if heading_chain else "[无章节上下文]"
+    prompt =  (
+        "你是一名QA需求分析专家。请根据图片内容、PRD文件摘要和图片局部上下文，"
+        "输出一段结构化自然语言描述。可以从以下维度思考：\n"
+        "1. 图片类型识别（UI原型、流程图、架构图、截图等）\n"
+        "2. 整体布局和空间关系(如果是UI原型图），按从上至下，从左到右的顺序描述区域/组件\n"
+        "3. UI组件的视觉特征及交互状态\n"
+        "4. 图表中的数据关系和流向\n"
+        "5. 与产品需求的关联\n\n"
+        "输出要求：\n"
+        "- 只输出一段可读文本（analysis_text），不要JSON。\n"
+        "- 对无法识别的信息显式标注：[无法识别: xxx]。\n"
+        "- 不要输出与图片无关的臆测。\n"
+        f"- 详细程度：{detail_map[detail_level]}\n\n"
+        "=== PRD文件摘要 ===\n"
+        f"{file_summary}\n\n"
+    )
+    if heading_text:
+        prompt += f"=== 图片所在章节链 ===\n{heading_text}\n\n"
+    prompt += f"=== 图片局部上下文(前后文) ===\n{local_ctx}\n"
+    if image_alt:
+        prompt += f"=== 图片标注信息 ===\nalt: {image_alt or '[空]'}\n"
+    return prompt
+
+
+def analyze_image(
+    image_path: Path,
+    prompt_text: str,
+    model: str,
+    timeout: int,
+    retry: int,
+    on_error: str,
+) -> str:
+    mime = guess_mime(image_path)
+    image_b64 = base64.b64encode(image_path.read_bytes()).decode("utf-8")
+    data_url = f"data:{mime};base64,{image_b64}"
+
+    messages = [
+        {
+            "role": "system",
+            "content": "你是严谨的QA视觉分析助手。",
+        },
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt_text},
+                {"type": "image_url", "image_url": data_url},
+            ],
+        },
+    ]
+
+    return call_with_retry(
+        lambda: _openai_responses_call(model=model, messages=messages, timeout=timeout),
+        retry=retry,
+        on_error=on_error,
+    )
+
+
+def guess_mime(path: Path) -> str:
+    suffix = path.suffix.lower()
+    if suffix in (".jpg", ".jpeg"):
+        return "image/jpeg"
+    if suffix == ".webp":
+        return "image/webp"
+    if suffix == ".gif":
+        return "image/gif"
+    return "image/png"
+
+
+def build_md_report(
+    meta: Dict[str, Any],
+    images: List[Dict[str, Any]],
+    errors: List[str],
+    include_image_snippet: bool,
+) -> str:
+    lines: List[str] = []
+    lines.append(f"# PRD 图片解析报告 - {meta['feature_name']}")
+    lines.append("")
+    lines.append("## 元信息")
+    lines.append(f"- PRD 文件: `{meta['prd_file']}`")
+    lines.append(f"- 生成时间(UTC): `{meta['generated_at']}`")
+    lines.append(f"- 模型: `{meta['model']}`")
+    lines.append(f"- 模式: `{meta['mode']}`")
+    lines.append("")
+    lines.append("## 图片解析结果")
+    if not images:
+        lines.append("- 无可解析图片")
+    for item in images:
+        lines.append(f"### {item['image_id']}")
+        lines.append(f"- 图片路径: `{item['image_path']}`")
+        lines.append(f"- 来源行号: `{item['source_line']}`")
+        if include_image_snippet and item.get("image_snippet"):
+            lines.append(f"- Markdown 引用: `{item['image_snippet']}`")
+        lines.append("")
+        lines.append(item["analysis_text"])
+        lines.append("")
+    if errors:
+        lines.append("## 错误与警告")
+        for e in errors:
+            lines.append(f"- {e}")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def main() -> int:
+    args = parse_args()
+    if not args.emit_json and not args.emit_md:
+        args.emit_json = True
+        args.emit_md = True
+
+    prd_file = Path(args.prd_file).resolve()
+    feature_name = prd_file.stem
+    if not prd_file.exists():
+        print(f"[ERROR] PRD file not found: {prd_file}", file=sys.stderr)
+        return 1
+    if not args.output_dir:
+        output_dir = prd_file.parent.resolve()
+    else:
+        output_dir = Path(args.output_dir).resolve()
+    ensure_dir(output_dir)
+    cache_dir = output_dir / ".cache" / "prd-image-parser"
+    ensure_dir(cache_dir)
+
+    prd_text = load_text(prd_file)
+    prd_dir = prd_file.parent
+
+    refs = extract_markdown_images(prd_text, prd_dir)
+    errors: List[str] = []
+    selected: List[ImageRef] = []
+
+    if args.image_path:
+        target = resolve_single_image_path(prd_dir, args.image_path, Path.cwd())
+        matched = [r for r in refs if r.resolved_path == target]
+        if matched:
+            selected = [matched[0]]
+        else:
+            if not target.exists():
+                print(f"[ERROR] Single image not found: {target}", file=sys.stderr)
+                return 1
+            errors.append(f"单图模式: 图片未在PRD中找到引用，将降级使用文件级上下文。path={target}")
+            selected = [
+                ImageRef(
+                    image_id="IMG-001",
+                    alt="",
+                    raw_path=args.image_path,
+                    resolved_path=target,
+                    line_no=1,
+                    raw_line="",
+                )
+            ]
+    else:
+        selected = refs[: args.max_images]
+
+    if not selected:
+        raise ValueError("No images found to parse.")
+
+    summary = ""
+    summary_key = file_summary_key(prd_text, args.model)
+    summary_data_path, _ = cache_paths(cache_dir, summary_key, "file-summary")
+    if summary_data_path.exists() and not args.force_refresh:
+        summary_payload = read_json(summary_data_path)
+        summary = summary_payload["summary_text"]
+    elif args.dry_run:
+        summary = "[dry-run] PRD summary skipped."
+    else:
+        summary = generate_prd_summary(
+            prd_text=prd_text,
+            model=args.model,
+            timeout=args.timeout,
+            retry=args.retry,
+            on_error=args.on_error,
+        )
+        write_json(
+            summary_data_path,
+            {
+                "key": summary_key,
+                "summary_prompt_version": SUMMARY_PROMPT_VERSION,
+                "model": args.model,
+                "created_at": now_iso(),
+                "summary_text": summary,
+            },
+        )
+
+    image_outputs: List[Dict[str, Any]] = []
+    success = 0
+    failed = 0
+
+    for ref in selected:
+        if not ref.resolved_path.exists():
+            msg = f"图片不存在: {ref.resolved_path}"
+            errors.append(msg)
+            failed += 1
+            if args.on_error == "abort":
+                print(f"[ERROR] {msg}", file=sys.stderr)
+                return 1
+            continue
+
+        heading = heading_chain_until_line(prd_text, ref.line_no)
+        ctx = local_context(prd_text, ref.line_no) if ref.line_no > 0 else "[无局部上下文]"
+        prompt_text = build_image_prompt(
+            detail_level=args.detail_level,
+            file_summary=summary,
+            heading_chain=heading,
+            local_ctx=ctx,
+            image_alt=ref.alt,
+            image_raw_line=ref.raw_line or "[无引用行]",
+        )
+        i_key = image_analysis_key(
+            image_sha=sha256_file(ref.resolved_path),
+            local_context_text=ctx,
+            file_summary_text=summary,
+            model=args.model,
+            detail_level=args.detail_level,
+        )
+        img_cache_path, _ = cache_paths(cache_dir, i_key, "image")
+
+        analysis_text = ""
+        if img_cache_path.exists() and not args.force_refresh:
+            img_payload = read_json(img_cache_path)
+            analysis_text = img_payload["analysis_text"]
+        elif args.dry_run:
+            analysis_text = "[dry-run] image analysis skipped."
+        else:
+            try:
+                analysis_text = analyze_image(
+                    image_path=ref.resolved_path,
+                    prompt_text=prompt_text,
+                    model=args.model,
+                    timeout=args.timeout,
+                    retry=args.retry,
+                    on_error=args.on_error,
+                )
+            except Exception as e:  # pylint: disable=broad-except
+                msg = f"{ref.image_id} 解析失败: {e}"
+                errors.append(msg)
+                failed += 1
+                if args.on_error == "abort":
+                    print(f"[ERROR] {msg}", file=sys.stderr)
+                    return 1
+                continue
+            write_json(
+                img_cache_path,
+                {
+                    "key": i_key,
+                    "image_prompt_version": IMAGE_PROMPT_VERSION,
+                    "model": args.model,
+                    "detail_level": args.detail_level,
+                    "created_at": now_iso(),
+                    "image_path": str(ref.resolved_path),
+                    "analysis_text": analysis_text,
+                },
+            )
+
+        out_item: Dict[str, Any] = {
+            "image_id": ref.image_id,
+            "image_path": str(ref.resolved_path),
+            "source_line": ref.line_no,
+            "analysis_text": analysis_text,
+        }
+        if args.include_image_snippet:
+            out_item["image_snippet"] = ref.raw_line
+        image_outputs.append(out_item)
+        success += 1
+
+    mode = "single-image" if args.image_path else "full-prd"
+    result = {
+        "meta": {
+            "prd_file": str(prd_file),
+            "feature_name": feature_name,
+            "generated_at": now_iso(),
+            "model": args.model,
+            "mode": mode,
+        },
+        "images": image_outputs,
+        "summary": {
+            "total": len(selected),
+            "success": success,
+            "failed": failed,
+        },
+        "errors": errors,
+    }
+
+    json_path = output_dir / f"{feature_name}-image-analysis.json"
+    md_path = output_dir / f"{feature_name}-image-analysis.md"
+    log_path = output_dir / f"{feature_name}-image-analysis-errors.log"
+
+    if args.emit_json:
+        write_json(json_path, result)
+    if args.emit_md:
+        md_text = build_md_report(
+            meta=result["meta"],
+            images=result["images"],
+            errors=result["errors"],
+            include_image_snippet=args.include_image_snippet,
+        )
+        md_path.write_text(md_text, encoding="utf-8")
+    if errors:
+        log_path.write_text("\n".join(errors) + "\n", encoding="utf-8")
+
+    print(
+        f"[DONE] mode={mode} total={len(selected)} success={success} failed={failed} "
+        f"json={args.emit_json} md={args.emit_md}"
+    )
+    if args.emit_json:
+        print(f"[OUT] {json_path}")
+    if args.emit_md:
+        print(f"[OUT] {md_path}")
+    if errors:
+        print(f"[OUT] {log_path}")
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+    sys.argv[1:] = [
+        "--prd-file",
+        "/Users/zengzhihua/Documents/code/testing-wiki/huya-pc-web/prd/web-nav/web顶部栏tab异化图标支持配置.md",
+        # "--image-path",
+        # "images/f2dda1df57298c02c4aafb599c56200d2ca201c12256e90d076f9393f02e5881.png"
+    ]
+    sys.exit(main())

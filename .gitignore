@@ -23,7 +23,7 @@ $RECYCLE_BIN/
 # ===========================================
 # IDE 和编辑器
 # ===========================================
-
+__pycache__/
 # VSCode
 .vscode/
 !.vscode/settings.json
@@ -42,4 +42,6 @@ $RECYCLE_BIN/
 *.swo
 *~
 .netrwhist
+
+*.pyc
 
