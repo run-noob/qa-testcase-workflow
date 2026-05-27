@@ -1,33 +1,32 @@
 ---
 name: qa-testcase-merge
-description: 将当前需求的测试用例合并到全量用例库，并在确认后归档 prd/current 内容
+description: 将当前需求目录下的测试用例合并到全量用例库，并在确认后归档对应 PRD 目录内容
 ---
 
 # QA 测试用例合并归档 Skill
 
 ## 适用场景
-当用户确认当前需求测试完成、评审通过，准备把 `prd/current/output/test-cases/` 产出并入 `test-cases/` 全量用例库，并归档当前 PRD 时使用本 Skill。
+当用户确认当前需求测试完成、评审通过，准备把 `prd/{需求目录}/output/test-cases/` 产出并入 `test-cases/` 全量用例库，并归档对应 PRD 目录时使用本 Skill。
 
 建议调用示例：
-- `/qa-testcase-merge`
 - `/qa-testcase-merge 退款需求`
-- `/qa-testcase-merge prd/current/output/test-cases/review-report.md`
+- `/qa-testcase-merge prd/退款需求/output/test-cases/review-report.md`
 
 ## 关键建议
 本 Skill 采用“两阶段执行”：
 1. **先生成合并计划**：分析将新增、修改、废弃哪些文件与用例。
-2. **等待用户确认后再落盘**：只有用户明确确认，才真正修改 `test-cases/` 与归档 `prd/current/`。
+2. **等待用户确认后再落盘**：只有用户明确确认，才真正修改 `test-cases/` 与归档 `prd/{需求目录}/`。
 
 这样可以显著降低误合并和误归档风险。
 
 ## 输入参数
 - `$ARGUMENTS` 可选。
-- 未传参数时，默认读取当前需求的 review、summary、change-diff 等文件。
+- 未传参数时，默认读取当前需求的 review、summary 等文件。
 
 ## 前置条件
 优先检查：
-1. `prd/current/output/test-cases/` 下存在当前需求生成的用例文件。
-2. 存在 `prd/current/output/test-cases/review-report.md`。
+1. `prd/{需求目录}/output/test-cases/` 下存在当前需求生成的用例文件。
+2. 存在 `prd/{需求目录}/output/test-cases/review-report.md`。
 3. 评审结论为“通过”或“有条件通过且已修复完成”。
 4. `test-cases/index.md` 可读取；若不存在，则需要同时初始化它。
 
@@ -38,20 +37,19 @@ description: 将当前需求的测试用例合并到全量用例库，并在确�
 ## 强制规则
 1. 任务开始前先读取 `glossary/`、`test-cases/index.md`。
 2. 先产出合并计划，再请求用户确认，不要直接改全量用例库。
-3. 只在用户明确确认后，才允许修改 `test-cases/` 和归档 `prd/current/`。
+3. 只在用户明确确认后，才允许修改 `test-cases/` 和归档 `prd/{需求目录}/`。
 4. 合并时必须确保用例 ID 唯一；如冲突，必须重新编号并记录映射关系。
 5. 处理废弃用例时，默认保留历史记录，不直接物理删除，除非用户明确要求。
 6. 更新 `test-cases/index.md`，必要时更新模块级 `index.md`。
 7. 归档目录使用：`prd/archive/YYYY-MM-DD-{feature-name}/`。
-8. 归档完成后，保留 `prd/current/images/`、`prd/current/output/`、`prd/current/output/test-cases/` 的空目录结构。
+8. 归档完成后，仅处理当前需求目录；不要影响其他需求目录。
 
 ## 执行流程
 
 ### Phase A：生成合并计划（只读分析）
 读取：
-- `prd/current/output/test-cases/test-case-summary.md`
-- `prd/current/output/test-cases/review-report.md`
-- `prd/current/output/*-change-diff.md`（如存在）
+- `prd/{需求目录}/output/test-cases/test-case-summary.md`
+- `prd/{需求目录}/output/test-cases/review-report.md`（如存在）
 - `test-cases/index.md`
 - 与目标模块有关的存量用例文件（按需）
 
@@ -68,7 +66,7 @@ description: 将当前需求的测试用例合并到全量用例库，并在确�
 必须向用户展示合并计划摘要，并明确询问：
 - 是否按此计划执行真实合并与归档
 
-未得到确认前，不要修改任何全量库文件，也不要移动 `prd/current/`。
+未得到确认前，不要修改任何全量库文件，也不要移动 `prd/{需求目录}/`。
 
 ### Phase C：执行真实合并（仅在确认后）
 
@@ -97,11 +95,11 @@ description: 将当前需求的测试用例合并到全量用例库，并在确�
 ### Phase D：归档 PRD
 仅在合并完成后执行：
 1. 创建归档目录：`prd/archive/YYYY-MM-DD-{feature-name}/`
-2. 将 `prd/current/` 下本次需求相关文件移动到归档目录
-3. 清空 `prd/current/` 中本次需求内容，但保留目录结构：
-   - `prd/current/images/`
-   - `prd/current/output/`
-   - `prd/current/output/test-cases/`
+2. 将 `prd/{需求目录}/` 下本次需求相关文件移动到归档目录
+3. 如团队需要保留占位目录，仅重建当前需求目录的空骨架：
+   - `prd/{需求目录}/images/`
+   - `prd/{需求目录}/output/`
+   - `prd/{需求目录}/output/test-cases/`
 
 ### Phase E：输出合并结果
 合并完成后，向用户输出摘要：
@@ -118,7 +116,7 @@ description: 将当前需求的测试用例合并到全量用例库，并在确�
 - 不能跳过确认直接合并。
 - 不能在存在 ID 冲突时静默覆盖。
 - 不能把本次需求的临时产物误并入错误模块。
-- 合并结果必须与 `change-diff`、`summary`、`review-report` 保持一致。
+- 合并结果必须与 `summary`、`review-report` 保持一致。
 - 更新索引时，保证文件路径和统计数字自洽。
 
 ## 失败处理

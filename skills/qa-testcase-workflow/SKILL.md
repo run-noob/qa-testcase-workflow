@@ -17,7 +17,6 @@ description: QA测试用例工作流总控，自动编排执行PRD分析、变�
 
 **建议调用示例**：
 ```bash
-/qa-testcase-workflow                        # 执行完整5步流程
 /qa-testcase-workflow 退款需求                # 指定需求名称执行完整流程
 /qa-testcase-workflow --steps 1-3 退款需求    # 只执行前3步
 /qa-testcase-workflow --from 3 退款需求       # 从步骤3开始执行
@@ -26,7 +25,6 @@ description: QA测试用例工作流总控，自动编排执行PRD分析、变�
 
 > 💡 **与独立Skills的关系**：本 Skill 会自动调用以下5个独立skills，但这些skills仍然可以单独调用用于灵活调试：
 > - `/qa-prd-analysis` - PRD分析
-> - `/qa-change-diff` - 变更影响分析
 > - `/qa-testcase-generation` - 用例生成
 > - `/qa-testcase-review` - 用例评审
 > - `/qa-testcase-merge` - 合并归档
@@ -58,18 +56,17 @@ description: QA测试用例工作流总控，自动编排执行PRD分析、变�
 本 Skill 会按顺序执行以下5个步骤：
 
 | 步骤号 | Skill名称 | 步骤名称 | 预期产物 | 是否必需确认 |
-|--------|-----------|----------|----------|--------------|
-| 1 | qa-prd-analysis | PRD 分析 | prd/current/output/{feature}-analysis.md | 否 |
-| 2 | qa-change-diff | 变更分析 | prd/current/output/{feature}-change-diff.md | 否 |
-| 3 | qa-testcase-generation | 用例生成 | prd/current/output/test-cases/*.md | 否 |
-| 4 | qa-testcase-review | 用例评审 | prd/current/output/test-cases/review-report.md | 否 |
-| 5 | qa-testcase-merge | 合并归档 | test-cases/（更新），prd/archive/（归档） | **是** |
+|-----|-----------|----------|----------|--------------|
+| 1   | qa-prd-analysis | PRD 分析 | prd/{feature-dir}/output/{feature}-analysis.md | 否 |
+| 2   | qa-testcase-generation | 用例生成 | prd/{feature-dir}/output/test-cases/*.md | 否 |
+| 3   | qa-testcase-review | 用例评审 | prd/{feature-dir}/output/test-cases/review-report.md | 否 |
+| 4   | qa-testcase-merge | 合并归档 | test-cases/（更新），prd/archive/（归档） | **是** |
 
 ---
 
 ## 强制规则
 
-1. **状态管理**：每个步骤完成后立即更新状态文件 `prd/current/.workflow-state.json`
+1. **状态管理**：每个需求目录独立维护状态文件 `prd/{feature-dir}/.workflow-state.json`
 2. **依赖检查**：执行步骤N前，必须确保步骤N-1的产物存在（除非使用 `--ignore-validation`）
 3. **并发限制**：初期版本不支持多个需求并发执行，如检测到进行中的工作流，必须先完成或终止
 4. **确认机制**：步骤5（合并归档）前必须暂停并请求用户确认，因为此操作会修改全量用例库
@@ -93,7 +90,7 @@ description: QA测试用例工作流总控，自动编排执行PRD分析、变�
 
 #### Step 1.2: 检查状态文件
 ```
-状态文件路径：prd/current/.workflow-state.json
+状态文件路径：prd/{feature-dir}/.workflow-state.json
 
 情况A：状态文件不存在
   → 创建新的状态文件
@@ -128,10 +125,10 @@ description: QA测试用例工作流总控，自动编排执行PRD分析、变�
 
 | 目录路径 | 用途 | 必需程度 | 缺失时的处理 |
 |----------|------|----------|--------------|
-| `prd/current/` | 存放当前需求的PRD文档 | **必需** | 提示创建或中止 |
-| `prd/current/output/` | 存放分析产物 | **必需** | 可自动创建 |
-| `prd/current/output/test-cases/` | 存放用例产物 | **必需** | 可自动创建 |
-| `prd/current/images/` | 存放PRD引用图片 | **必需** | 可自动创建 |
+| `prd/{feature-dir}/` | 存放当前需求的PRD文档 | **必需** | 提示创建或中止 |
+| `prd/{feature-dir}/output/` | 存放分析产物 | **必需** | 可自动创建 |
+| `prd/{feature-dir}/output/test-cases/` | 存放用例产物 | **必需** | 可自动创建 |
+| `prd/{feature-dir}/images/` | 存放PRD引用图片 | **必需** | 可自动创建 |
 | `prd/archive/` | 存放归档的历史需求 | **必需（步骤5）** | 提示创建或跳过步骤5 |
 | `test-cases/` | 全量测试用例库 | **必需（步骤5）** | 提示创建或跳过步骤5 |
 | `glossary/` | 业务术语表 | **强烈推荐** | 警告但可继续 |
@@ -145,10 +142,10 @@ function validate_directory_structure(steps_to_execute):
 
   # 检查必需目录
   required_dirs = [
-    "prd/current/",
-    "prd/current/output/",
-    "prd/current/output/test-cases/",
-    "prd/current/images/"
+    "prd/{feature-dir}/",
+    "prd/{feature-dir}/output/",
+    "prd/{feature-dir}/output/test-cases/",
+    "prd/{feature-dir}/images/"
   ]
 
   # 如果要执行步骤5，额外检查归档和用例库目录
@@ -180,7 +177,7 @@ function validate_directory_structure(steps_to_execute):
 ⚠️  目录结构不完整
 
 以下必需目录不存在：
-  ✗ prd/current/
+  ✗ prd/{feature-dir}/
   ✗ prd/archive/
   ✗ test-cases/
 
@@ -200,14 +197,14 @@ function validate_directory_structure(steps_to_execute):
     create_directory(dir)
 
   ✓ 已自动创建以下目录：
-    - prd/current/
-    - prd/current/output/
-    - prd/current/output/test-cases/
-    - prd/current/images/
+    - prd/{feature-dir}/
+    - prd/{feature-dir}/output/
+    - prd/{feature-dir}/output/test-cases/
+    - prd/{feature-dir}/images/
     - prd/archive/
     - test-cases/
 
-  💡 提示：请将PRD文档放入 prd/current/ 目录后重新执行。
+  💡 提示：请先确认需求目录名，并将PRD文档放入对应目录后重新执行。
 
   继续执行工作流？
     [1] 是，我已放置PRD文档
@@ -221,7 +218,7 @@ function validate_directory_structure(steps_to_execute):
   请按以下结构创建目录：
     项目根目录/
     ├── prd/
-    │   ├── current/           # 存放当前需求PRD
+    │   ├── {feature-dir}/     # 存放单个需求PRD
     │   │   ├── output/        # 分析产物输出目录
     │   │   │   └── test-cases/  # 用例产物目录
     │   │   └── images/        # PRD引用的图片
@@ -270,10 +267,11 @@ function validate_directory_structure(steps_to_execute):
 
 ##### 1.3.3 PRD文件存在性检查
 
-**检查 prd/current/ 下是否有PRD文档**：
+**检查 `prd/{feature-dir}/` 下是否有 PRD 文档**：
 ```
 function validate_prd_file(feature_name):
-  prd_files = glob("prd/current/*.md")
+  feature_dir = resolve_feature_dir(feature_name)
+  prd_files = glob(f"prd/{feature_dir}/*.md")
 
   # 排除output目录下的文件
   prd_files = filter(prd_files, not in "output/")
@@ -282,7 +280,7 @@ function validate_prd_file(feature_name):
     error: "
     ✗ 未找到PRD文档
 
-    prd/current/ 目录为空，请添加PRD文档。
+    prd/{feature_dir}/ 目录为空，请添加PRD文档。
 
     文件命名建议：
     - {feature-name}.md
@@ -295,12 +293,12 @@ function validate_prd_file(feature_name):
     "
     return false
 
-  if len(prd_files) > 1 and not feature_name:
+  if len(prd_files) > 1:
     ask_user: "
-    找到多个PRD文档：
+    在需求目录 prd/{feature_dir}/ 下找到多个PRD文档：
     {list prd_files}
 
-    请指定要分析的PRD：
+    请确认要分析的主PRD文件：
     [显示文件列表供选择]
     "
 
@@ -336,11 +334,10 @@ function validate_dependencies(steps_to_execute):
 
 function get_required_artifact(step):
   mapping = {
-    1: "prd/current/{feature}-*.md",  # PRD文档本身
-    2: "prd/current/output/{feature}-analysis.md",
-    3: "prd/current/output/{feature}-change-diff.md",
-    4: "prd/current/output/test-cases/test-case-summary.md",
-    5: "prd/current/output/test-cases/review-report.md"
+    1: "prd/{feature-dir}/{feature}-*.md",  # PRD文档本身
+    2: "prd/{feature-dir}/output/{feature}-analysis.md",
+    3: "prd/{feature-dir}/output/test-cases/test-case-summary.md",
+    4: "prd/{feature-dir}/output/test-cases/review-report.md"
   }
   return mapping[step]
 ```
@@ -351,8 +348,8 @@ function get_required_artifact(step):
 ```
 function validate_permissions():
   dirs_to_check = [
-    "prd/current/",
-    "prd/current/output/",
+    "prd/{feature-dir}/",
+    "prd/{feature-dir}/output/",
     "test-cases/"  # 仅步骤5需要
   ]
 
@@ -437,10 +434,9 @@ function validate_permissions():
 ```
 调用方式：
 Step 1: Skill("qa-prd-analysis", featureName)
-Step 2: Skill("qa-change-diff", featureName)
-Step 3: Skill("qa-testcase-generation", featureName)
-Step 4: Skill("qa-testcase-review", featureName)
-Step 5: Skill("qa-testcase-merge", featureName)
+Step 2: Skill("qa-testcase-generation", featureName)
+Step 3: Skill("qa-testcase-review", featureName)
+Step 4: Skill("qa-testcase-merge", featureName)
 
 注意：
 - 使用 Skill 工具进行调用
@@ -452,11 +448,10 @@ Step 5: Skill("qa-testcase-merge", featureName)
 ```
 验证逻辑：
 1. 检查预期产物是否生成：
-   Step 1: 检查 prd/current/output/*-analysis.md
-   Step 2: 检查 prd/current/output/*-change-diff.md
-   Step 3: 检查 prd/current/output/test-cases/test-case-summary.md
-   Step 4: 检查 prd/current/output/test-cases/review-report.md
-   Step 5: 检查 test-cases/ 更新 和 prd/archive/ 目录
+   Step 1: 检查 prd/{feature-dir}/output/*-analysis.md
+   Step 2: 检查 prd/{feature-dir}/output/test-cases/test-case-summary.md
+   Step 3: 检查 prd/{feature-dir}/output/test-cases/review-report.md
+   Step 4: 检查 test-cases/ 更新 和 prd/archive/ 目录
 
 2. 如果产物存在：
    ✓ 标记为成功
@@ -499,7 +494,7 @@ Step 5: Skill("qa-testcase-merge", featureName)
    - 此操作不可逆，请仔细确认
 
 2. 尝试读取合并计划（如果子skill支持Phase A输出）：
-   读取 prd/current/output/test-cases/review-report.md
+   读取 prd/{feature-dir}/output/test-cases/review-report.md
    提取关键信息：
    - 新增用例数
    - 修改用例数
@@ -630,13 +625,13 @@ Step 5: Skill("qa-testcase-merge", featureName)
 
 3. 清理状态文件：
    选项A：直接删除（默认）
-     - 删除 prd/current/.workflow-state.json
+     - 删除 prd/{feature-dir}/.workflow-state.json
 
    选项B：移动到归档（用于审计）
      - 如果执行了 Step 5（合并归档）：
        移动到 prd/archive/{date-feature}/.workflow-state.json
      - 否则：
-       移动到 prd/current/output/.workflow-state-{timestamp}.json
+       移动到 prd/{feature-dir}/output/.workflow-state-{timestamp}.json
 
 4. 退出工作流
 ```
@@ -646,7 +641,7 @@ Step 5: Skill("qa-testcase-merge", featureName)
 ## 状态文件详解
 
 ### 状态文件位置
-`prd/current/.workflow-state.json`
+`prd/{feature-dir}/.workflow-state.json`
 
 ### 状态文件结构
 ```json
@@ -660,11 +655,10 @@ Step 5: Skill("qa-testcase-merge", featureName)
   "failed_steps": [],
   "skipped_steps": [],
   "artifacts": {
-    "step1_analysis": "prd/current/output/refund-analysis.md",
-    "step2_change_diff": "prd/current/output/refund-change-diff.md",
-    "step3_testcases": null,
-    "step4_review": null,
-    "step5_merge": null
+    "step1_analysis": "prd/退款需求/output/refund-analysis.md",
+    "step2_testcases": null,
+    "step3_review": null,
+    "step4_merge": null
   },
   "execution_history": [
     {
@@ -701,12 +695,11 @@ Step 5: Skill("qa-testcase-merge", featureName)
 用于验证每个步骤的产物是否生成：
 
 | 步骤号 | 产物类型 | 路径模式 | 验证方法 |
-|--------|----------|----------|----------|
-| 1 | PRD分析报告 | `prd/current/output/{feature}-analysis.md` | 检查文件存在 |
-| 2 | 变更分析报告 | `prd/current/output/{feature}-change-diff.md` | 检查文件存在 |
-| 3 | 测试用例汇总 | `prd/current/output/test-cases/test-case-summary.md` | 检查文件存在 |
-| 4 | 评审报告 | `prd/current/output/test-cases/review-report.md` | 检查文件存在 |
-| 5 | 全量库更新 + 归档 | `test-cases/` 更新，`prd/archive/{date-feature}/` 创建 | 检查目录存在 |
+|-----|----------|----------|----------|
+| 1   | PRD分析报告 | `prd/{feature-dir}/output/{feature}-analysis.md` | 检查文件存在 |
+| 2   | 测试用例汇总 | `prd/{feature-dir}/output/test-cases/test-case-summary.md` | 检查文件存在 |
+| 3   | 评审报告 | `prd/{feature-dir}/output/test-cases/review-report.md` | 检查文件存在 |
+| 4   | 全量库更新 + 归档 | `test-cases/` 更新，`prd/archive/{date-feature}/` 创建 | 检查目录存在 |
 
 **注意**：
 - {feature} 需要从需求名称转换为 kebab-case 格式，如 "退款需求" → "refund"
@@ -719,11 +712,10 @@ Step 5: Skill("qa-testcase-merge", featureName)
 当执行部分流程时（如 `--from 3` 或 `--steps 2-4`），需要验证依赖：
 
 | 执行步骤 | 依赖步骤 | 必需的产物 |
-|----------|----------|------------|
-| 2 | 1 | prd/current/output/{feature}-analysis.md |
-| 3 | 2 | prd/current/output/{feature}-change-diff.md |
-| 4 | 3 | prd/current/output/test-cases/test-case-summary.md |
-| 5 | 4 | prd/current/output/test-cases/review-report.md |
+|------|------|------------|
+| 2    | 1    | prd/{feature-dir}/output/{feature}-analysis.md |
+| 3    | 2    | prd/{feature-dir}/output/test-cases/test-case-summary.md |
+| 4    | 3    | prd/{feature-dir}/output/test-cases/review-report.md |
 
 **验证逻辑**：
 ```
@@ -763,7 +755,7 @@ function validate_dependencies(steps_to_execute):
    - 无法解析 JSON
    - 缺少必需字段
    - 数据类型错误
-   → 提示："状态文件损坏，建议删除后重新执行：rm prd/current/.workflow-state.json"
+   → 提示："状态文件损坏，建议删除后重新执行：rm prd/{feature-dir}/.workflow-state.json"
 
 2. **并发冲突**：
    - 检测到其他工作流正在执行
@@ -808,7 +800,7 @@ function validate_dependencies(steps_to_execute):
 [1/5] 正在执行 PRD 分析...
 （调用 /qa-prd-analysis 会员订阅需求）
 ✓ PRD 分析完成
-  - 报告：prd/current/output/member-subscription-analysis.md
+  - 报告：prd/会员订阅需求/output/member-subscription-analysis.md
   - 功能点：12个
 
 [2/5] 正在执行变更分析...
@@ -862,8 +854,7 @@ function validate_dependencies(steps_to_execute):
 │   │   ├── images/                # PRD引用的图片（必需）
 │   │   └── output/                # 工作流产物输出目录（自动创建）
 │   │       ├── {feature}-analysis.md         # Step 1产物
-│   │       ├── {feature}-change-diff.md      # Step 2产物
-│   │       └── test-cases/        # Step 3-4产物目录
+│   │       └── test-cases/        # Step 2-3产物目录
 │   │           ├── test-case-summary.md
 │   │           ├── review-report.md
 │   │           └── {module}-cases.md
@@ -890,7 +881,6 @@ function validate_dependencies(steps_to_execute):
 └── skills/                        # 工作流Skills定义（自动加载）
     ├── qa-testcase-workflow/
     ├── qa-prd-analysis/
-    ├── qa-change-diff/
     ├── qa-testcase-generation/
     ├── qa-testcase-review/
     └── qa-testcase-merge/
@@ -900,8 +890,8 @@ function validate_dependencies(steps_to_execute):
 
 | 目录 | 说明 | 必需性 |
 |------|------|--------|
-| `prd/current/` | 存放当前正在处理的需求PRD文档 | ✅ 必需 |
-| `prd/current/output/` | 工作流各步骤的产物输出目录 | ✅ 必需（自动创建） |
+| `prd/{需求目录}/` | 存放单个需求的PRD文档 | ✅ 必需 |
+| `prd/{需求目录}/output/` | 当前需求各步骤的产物输出目录 | ✅ 必需（自动创建） |
 | `prd/archive/` | 已完成需求的归档目录 | ✅ 必需（步骤5） |
 | `test-cases/` | 全量测试用例库，所有用例的最终存储位置 | ✅ 必需（步骤5） |
 | `glossary/` | 业务术语表，用于PRD分析时识别专业术语 | 🔶 强烈推荐 |
@@ -913,8 +903,8 @@ function validate_dependencies(steps_to_execute):
 
 1. **创建必需目录**：
 ```bash
-mkdir -p prd/current/images
-mkdir -p prd/current/output/test-cases
+mkdir -p prd/退款需求/images
+mkdir -p prd/退款需求/output/test-cases
 mkdir -p prd/archive
 mkdir -p test-cases
 mkdir -p glossary
@@ -952,11 +942,11 @@ EOF
 
 3. **放置PRD文档**：
 ```bash
-# 将PRD文档放入 prd/current/ 目录
-cp your-prd.md prd/current/退款需求.md
+# 将PRD文档放入对应需求目录
+cp your-prd.md prd/退款需求/退款需求.md
 
 # 如果PRD中有图片，放入 images/ 目录
-cp prd-images/* prd/current/images/
+cp prd-images/* prd/退款需求/images/
 ```
 
 4. **执行工作流**：
@@ -970,7 +960,6 @@ cp prd-images/* prd/current/images/
 - 错误处理详细指南：`error-handling-guide.md`
 - 子Skills文档：
   - `../qa-prd-analysis/SKILL.md`
-  - `../qa-change-diff/SKILL.md`
   - `../qa-testcase-generation/SKILL.md`
   - `../qa-testcase-review/SKILL.md`
   - `../qa-testcase-merge/SKILL.md`

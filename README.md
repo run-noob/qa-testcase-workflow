@@ -112,23 +112,23 @@ graph LR
 ### 详细流程说明
 
 #### Step 1: PRD 分析
-- **输入**：`prd/current/{需求名}.md`
-- **输出**：`prd/current/output/{需求名}-analysis.md`
+- **输入**：`prd/{需求目录}/{需求目录}.md`
+- **输出**：`prd/{需求目录}/output/{需求名}-analysis.md`
 - **内容**：功能点清单、测试关注点、涉及模块、风险项、术语说明
 
 #### Step 2: 变更分析
 - **输入**：分析报告 + 存量用例库
-- **输出**：`prd/current/output/{需求名}-change-diff.md`
+- **输出**：`prd/{需求目录}/output/{需求名}-change-diff.md`
 - **内容**：影响模块分析、需新增/修改/废弃的用例方向
 
 #### Step 3: 用例生成
 - **输入**：分析报告 + 变更差异报告
-- **输出**：`prd/current/output/test-cases/*.md`
+- **输出**：`prd/{需求目录}/output/test-cases/*.md`
 - **内容**：按模块分类的结构化测试用例（含 P0-P3 优先级）
 
 #### Step 4: 用例评审
 - **输入**：生成的测试用例
-- **输出**：`prd/current/output/test-cases/review-report.md`
+- **输出**：`prd/{需求目录}/output/test-cases/review-report.md`
 - **内容**：用例质量评分、问题清单、修改建议、评审结论
 
 #### Step 5: 合并归档
@@ -179,7 +179,7 @@ cp -r qa-testcase-workflow/skills ./skills
 
 ```bash
 # 自动创建所有必需目录
-mkdir -p prd/current/images prd/current/output/test-cases prd/archive test-cases glossary standards
+mkdir -p prd/archive test-cases glossary standards
 
 # 创建用例库索引文件
 cat > test-cases/index.md << 'EOF'
@@ -217,11 +217,14 @@ EOF
 
 1. **放置 PRD 文档**
 ```bash
-# 将 PRD 文档复制到 prd/current/
-cp your-prd.md prd/current/退款需求.md
+# 创建需求目录
+mkdir -p prd/退款需求/images prd/退款需求/output/test-cases
+
+# 将主 PRD 文档复制到对应需求目录
+cp your-prd.md prd/退款需求/退款需求.md
 
 # 如果 PRD 中有图片，一并复制
-cp prd-images/* prd/current/images/
+cp prd-images/* prd/退款需求/images/
 ```
 
 2. **执行完整工作流**
@@ -232,16 +235,16 @@ cp prd-images/* prd/current/images/
 3. **查看结果**
 ```bash
 # 分析报告
-cat prd/current/output/退款需求-analysis.md
+cat prd/退款需求/output/退款需求-analysis.md
 
 # 变更分析
-cat prd/current/output/退款需求-change-diff.md
+cat prd/退款需求/output/退款需求-change-diff.md
 
 # 生成的用例
-ls prd/current/output/test-cases/
+ls prd/退款需求/output/test-cases/
 
 # 评审报告
-cat prd/current/output/test-cases/review-report.md
+cat prd/退款需求/output/test-cases/review-report.md
 
 # 全量用例库（已更新）
 ls test-cases/
@@ -272,7 +275,7 @@ ls test-cases/
 
 [1/5] 正在执行 PRD 分析...
 ✓ PRD 分析完成
-  - 报告：prd/current/output/member-subscription-analysis.md
+  - 报告：prd/会员订阅需求/output/member-subscription-analysis.md
   - 功能点：12个
   - 风险项：2个
 
@@ -411,8 +414,8 @@ ls test-cases/
 ```
 项目根目录/
 ├── prd/                           # 需求文档目录
-│   ├── current/                   # 当前需求目录（✅ 必需）
-│   │   ├── {需求名称}.md         # PRD文档
+│   ├── {需求目录}/                # 单个需求目录（✅ 必需）
+│   │   ├── {需求目录}.md         # 主 PRD 文档，通常与目录同名
 │   │   ├── images/                # PRD引用的图片
 │   │   └── output/                # 工作流产物输出目录
 │   │       ├── {feature}-analysis.md
@@ -458,7 +461,7 @@ ls test-cases/
 
 ### 示例 1：电商退款需求
 
-**PRD 文档**：`prd/current/refund-feature.md`
+**PRD 文档**：`prd/退款需求/退款需求.md`
 
 **执行命令**：
 ```bash
@@ -484,7 +487,7 @@ ls test-cases/
 **产出**：
 - 步骤 1-3 的产物（分析、变更、用例）
 - 不执行评审和合并
-- 用例草稿位于 `prd/current/output/test-cases/`
+- 用例草稿位于 `prd/会员订阅需求/output/test-cases/`
 
 ### 示例 3：活动页面改版（错误恢复）
 
@@ -562,8 +565,8 @@ echo "### 活动页\n- 定义：..." >> glossary/business-terms.md
 4. 评审通过后才执行步骤 5 合并归档
 
 **避免的操作**：
-- ❌ 不要在 `prd/current/` 同时放多个 PRD 文档
-- ❌ 不要手动修改 `prd/current/output/` 下的产物（会被覆盖）
+- ❌ 不要把多个需求的文件混放在同一个目录
+- ❌ 不要手动修改 `prd/{需求目录}/output/` 下的产物（会被覆盖）
 - ❌ 不要跳过步骤 4（评审）直接合并到全量库
 - ❌ 不要在工作流执行中手动删除状态文件
 
@@ -578,191 +581,12 @@ echo "### 活动页\n- 定义：..." >> glossary/business-terms.md
 
 **排除版本控制**（`.gitignore`）：
 ```
-prd/current/.workflow-state.json
-prd/current/output/
-prd/current/*.md
-prd/current/images/
+prd/*/.workflow-state.json
+prd/*/output/
 ```
 
 ---
 
-## 故障排查
-
-### 问题 1：目录结构不完整
-
-**现象**：
-```
-⚠️  目录结构不完整
-以下必需目录不存在：
-  ✗ prd/current/
-  ✗ test-cases/
-```
-
-**解决**：
-```bash
-# 选项 1：执行工作流时选择自动创建
-/qa-testcase-workflow 退款需求
-# 提示时选择 [1] 自动创建缺失的目录
-
-# 选项 2：手动创建
-mkdir -p prd/current/images prd/current/output/test-cases prd/archive test-cases glossary
-```
-
-### 问题 2：未找到 PRD 文档
-
-**现象**：
-```
-✗ 未找到PRD文档
-prd/current/ 目录为空，请添加PRD文档。
-```
-
-**解决**：
-```bash
-# 将 PRD 文档复制到 prd/current/
-cp your-prd.md prd/current/退款需求.md
-```
-
-### 问题 3：状态文件损坏
-
-**现象**：
-```
-✗ 状态文件损坏，无法解析
-```
-
-**解决**：
-```bash
-# 删除损坏的状态文件，重新执行
-rm prd/current/.workflow-state.json
-/qa-testcase-workflow 退款需求
-```
-
-### 问题 4：用例 ID 冲突
-
-**现象**：
-```
-⚠️  用例ID冲突
-步骤5合并时检测到以下ID已存在：
-  - TC-ORDER-001
-  - TC-ORDER-002
-```
-
-**解决**：
-1. 检查 `prd/current/output/test-cases/` 中的用例 ID
-2. 手动修改为唯一 ID（如 `TC-ORDER-101`）
-3. 使用 `--resume` 继续执行
-
-### 问题 5：评审未通过
-
-**现象**：
-```
-⚠️  评审结论：未通过
-存在 5 个致命问题，2 个严重问题
-```
-
-**解决**：
-1. 查看评审报告：`cat prd/current/output/test-cases/review-report.md`
-2. 根据问题清单修改用例文件
-3. 重新执行评审：`/qa-testcase-review 退款需求`
-4. 确认通过后继续：`/qa-testcase-workflow --from 5 退款需求`
-
----
-
-## 贡献指南
-
-欢迎贡献代码、文档或提出建议！
-
-### 如何贡献
-
-1. **Fork 本仓库**
-2. **创建特性分支**：`git checkout -b feature/your-feature`
-3. **提交更改**：`git commit -am 'Add some feature'`
-4. **推送分支**：`git push origin feature/your-feature`
-5. **创建 Pull Request**
-
-### 开发规范
-
-- 所有 Skills 的 `SKILL.md` 必须遵循统一格式
-- 新增功能需要补充文档和示例
-- 修改核心逻辑需要更新测试用例
-- 提交信息遵循 Conventional Commits 规范
-
-### 问题反馈
-
-- 提交 Issue：[GitHub Issues](https://github.com/your-repo/qa-testcase-workflow/issues)
-- 加入讨论：[GitHub Discussions](https://github.com/your-repo/qa-testcase-workflow/discussions)
-
----
-
-## 常见问题（FAQ）
-
-<details>
-<summary><strong>Q1: 工作流执行需要多长时间？</strong></summary>
-
-**A**: 根据 PRD 复杂度不同，通常：
-- 小型需求（< 5 个功能点）：约 5-10 分钟
-- 中型需求（5-15 个功能点）：约 10-20 分钟
-- 大型需求（> 15 个功能点）：约 20-40 分钟
-
-可以使用 `--steps 1-3` 先快速生成草稿（约 3-5 分钟）。
-</details>
-
-<details>
-<summary><strong>Q2: 可以同时处理多个需求吗？</strong></summary>
-
-**A**: 当前版本（v0.1.0）不支持并发执行多个需求。如果检测到正在进行的工作流，会提示先完成或终止。
-
-未来版本将支持多需求并发。
-</details>
-
-<details>
-<summary><strong>Q3: 生成的用例质量如何保证？</strong></summary>
-
-**A**: 质量保证机制：
-1. Step 1 深度分析 PRD，提取功能点和边界条件
-2. Step 2 结合存量用例库，避免重复和遗漏
-3. Step 3 基于模板和规范生成结构化用例
-4. Step 4 自动评审，检查完整性、清晰度、可执行性等
-5. Step 5 合并前人工确认，避免误修改全量库
-
-建议：首次使用时先用 `--steps 1-3` 生成草稿，人工审查后再完整执行。
-</details>
-
-<details>
-<summary><strong>Q4: 如何自定义用例模板和评审规则？</strong></summary>
-
-**A**: 在 `standards/` 目录下维护：
-- `test-case-template.md`：自定义用例模板
-- `review-checklist.md`：自定义评审规则
-
-工作流会自动加载这些文件作为生成和评审的参考。
-</details>
-
-<details>
-<summary><strong>Q5: 支持哪些 Agent 工具？</strong></summary>
-
-**A**: 当前支持：
-- ✅ Claude Code (≥ 4.0.0)
-- ✅ CodeBuddy
-- ✅ Cursor
-
-未来计划支持：GitHub Copilot、Tabnine 等。
-</details>
-
----
-
-## 更新日志
-
-详见 [CHANGELOG.md](CHANGELOG.md)
-
-**最新版本：v0.1.0**（2026-03-18）
-- ✨ 初始版本发布
-- ✅ 完整的 5 步工作流自动化
-- ✅ 支持部分执行和断点恢复
-- ✅ 智能错误处理机制
-- ✅ 进度可视化
-- ✅ 状态管理与追踪
-
----
 
 ## 许可证
 

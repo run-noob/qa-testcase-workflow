@@ -9,27 +9,26 @@ description: 审查当前需求生成的测试用例质量，检查完整性、�
 当用户要求对已生成的测试用例进行质量评审、自检、覆盖检查、规范校验时使用本 Skill。
 
 建议调用示例：
-- `/qa-testcase-review`
 - `/qa-testcase-review 退款需求`
-- `/qa-testcase-review prd/current/output/test-cases/test-case-summary.md`
+- `/qa-testcase-review prd/退款需求/output/test-cases/test-case-summary.md`
 
 ## 输入参数
 - `$ARGUMENTS` 可选。
-- 未传参数时，默认评审 `prd/current/output/test-cases/` 下当前需求的所有产出文件。
+- 未传参数时，默认先向用户确认需求目录，再评审 `prd/{需求目录}/output/test-cases/` 下当前需求的所有产出文件。
 
 ## 强制规则
-4. 逐个读取当前需求下的生成用例文件进行评审。
-5. 默认只输出评审报告，不直接修改用例文件。
-6. 如果需要自动修复，必须先得到用户明确同意。
-7. 评审产出写入 `prd/current/output/test-cases/review-report.md`。
+1. 逐个读取当前需求下的生成用例文件进行评审。
+2. 默认只输出评审报告，不直接修改用例文件。
+3. 如果需要自动修复，必须先得到用户明确同意。
+4. 评审产出写入 `prd/{需求目录}/output/test-cases/review-report.md`。
 
 ## 执行流程
 
 ### Step 1：加载评审材料
 读取：
-- `prd/current/output/*-analysis.md`
-- `prd/current/output/test-cases/test-case-summary.md`
-- `prd/current/output/test-cases/` 下所有当前需求生成的用例文件
+- `prd/{需求目录}/output/*-analysis.md`
+- `prd/{需求目录}/output/test-cases/test-case-summary.md`
+- `prd/{需求目录}/output/test-cases/` 下所有当前需求生成的用例文件
 - `glossary/`：遇到不懂的业务概念，在该目录查找相关术语文件。
 
 ### Step 2：多维度评审
@@ -54,7 +53,7 @@ description: 审查当前需求生成的测试用例质量，检查完整性、�
 #### 2.3 规范性评审
 检查：
 - 文件格式是否符合模板要求
-- 用例 ID 是否符合编号规则，是否源自产品分析文档`prd/current/output/*-analysis.md`
+- 用例 ID 是否符合编号规则，是否源自产品分析文档 `prd/{需求目录}/output/*-analysis.md`
 - 优先级分配是否合理
 - 描述是否清晰无歧义
 - 步骤是否可独立执行
@@ -67,7 +66,7 @@ description: 审查当前需求生成的测试用例质量，检查完整性、�
 - 是否存在高风险场景优先级过低的问题
 
 ### Step 3：输出评审报告
-写入：`prd/current/output/test-cases/review-report.md`
+写入：`prd/{需求目录}/output/test-cases/review-report.md`
 
 建议结构：
 

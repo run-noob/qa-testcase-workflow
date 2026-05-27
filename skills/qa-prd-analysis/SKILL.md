@@ -1,6 +1,6 @@
 ---
 name: qa-prd-analysis
-description: 分析 prd/current 下的 PRD 文档，输出结构化需求分析报告、功能点、测试关注点与风险项
+description: 分析 prd/{需求目录} 下的 PRD 文档，输出结构化需求分析报告、功能点、测试关注点与风险项
 ---
 
 # QA PRD 分析 Skill
@@ -9,31 +9,32 @@ description: 分析 prd/current 下的 PRD 文档，输出结构化需求分析�
 当用户要求分析 PRD、拆解需求、识别测试关注点、输出需求分析报告时使用本 Skill。
 
 建议调用示例：
-- `/qa-prd-analysis`
-- `/qa-prd-analysis prd/current/order-refund-feature.md`
+- `/qa-prd-analysis prd/退款需求/退款需求.md`
 - `/qa-prd-analysis 退款需求`
 
 ## 输入参数
 - `$ARGUMENTS` 可选。
 - 如果传入的是文件路径，优先分析该文件。
-- 如果传入的是需求名，先在 `prd/current/` 下匹配对应 PRD 文件。
-- 如果未传参数，则扫描 `prd/current/` 下待分析的 markdown 文件。
-- 如果匹配到多个候选文件，必须先向用户确认，不要自行猜测。
+- 如果传入的是需求名，先确认对应的需求目录名，再在 `prd/{需求目录}/` 下定位主 PRD 文件。
+- 如果未传参数，则扫描 `prd/` 下的需求目录，再向用户先确认本次要处理的需求目录。
+- 如果需求目录里匹配到多个候选目录或多个候选 PRD 文件，必须先向用户确认，不要自行猜测。
 
 ## 强制规则
 1. 任务开始前，先读取 `glossary/` 下所有术语文件，建立业务上下文。
 2. 优先参考 `skills/qa-prd-analysis/analysis-template.md` 模板。
 3. 所有输出使用中文；技术术语保留英文原文，并在必要时附中文解释。
 4. 文件名使用 kebab-case。
-5. 分析产出写入 `prd/current/output/{feature-name}-analysis.md`。
-6. 不要修改 `test-cases/` 全量用例库。
-7. 遇到术语表中不存在且无法确定含义的术语，标记为 `[待确认术语: xxx]`，继续分析，不要臆断。
-8. 如果 PRD 超过 3000 行，先生成结构化大纲，再按章节分段分析，最后汇总。
-9. 如果 PRD 中引用图片，优先读取图片；若图片无法读取，则在报告中标记 `[图片待补充说明: xxx]`。
-10. 编号命名规范，所有组件、流程使用统一编号格式：{SystemModule}-{Component}
+5. 在正式分析前，必须先确认需求目录名（`feature-dir`），再定位该目录下的主 PRD 文件。
+6. 默认约定主 PRD 文件与需求目录同名，例如 `prd/退款需求/退款需求.md`；若不一致，可接受 `{需求目录}-prd.md` 等命名，但必须先确认。
+7. 分析产出写入 `prd/{feature-dir}/output/{feature-name}-analysis.md`。
+8. 不要修改 `test-cases/` 全量用例库。
+9. 遇到术语表中不存在且无法确定含义的术语，标记为 `[待确认术语: xxx]`，继续分析，不要臆断。
+10. 如果 PRD 超过 3000 行，先生成结构化大纲，再按章节分段分析，最后汇总。
+11. 如果 PRD 中引用图片，优先读取图片；若图片无法读取，则在报告中标记 `[图片待补充说明: xxx]`。
+12. 编号命名规范，所有组件、流程使用统一编号格式：{SystemModule}-{Component}
     - SystemModule: 从系统角度划分的模块，如Trade：交易模块
     - Component：页面下的某一个区块或者子组件（注意划分的颗粒度），如Filter：筛选组件; SubmitBtn: 提交按钮
-11. 当 PRD 含有原型图、流程图、截图等图片信息时，优先使用 `skills/qa-prd-analysis/scripts/prd_image_parser.py` 生成图片解析结果，再将结果纳入需求分析报告。
+13. 当 PRD 含有原型图、流程图、截图等图片信息时，优先使用 `skills/qa-prd-analysis/scripts/prd_image_parser.py` 生成图片解析结果，再将结果纳入需求分析报告。
 
 ## 图片解析辅助脚本
 
@@ -51,14 +52,14 @@ description: 分析 prd/current 下的 PRD 文档，输出结构化需求分析�
 
 ```bash
 python3 skills/qa-prd-analysis/scripts/prd_image_parser.py \
-  --prd-file prd/current/{需求名}.md
+  --prd-file prd/{需求目录}/{需求目录}.md
 ```
 
 单图深度解析：
 
 ```bash
 python3 skills/qa-prd-analysis/scripts/prd_image_parser.py \
-  --prd-file prd/current/{需求名}.md \
+  --prd-file prd/{需求目录}/{需求目录}.md \
   --image-path images/{图片名}.png \
   --detail-level deep
 ```
@@ -71,9 +72,9 @@ python3 skills/qa-prd-analysis/scripts/prd_image_parser.py \
 - `--include-image-snippet`：在输出中附带原始图片引用语句
 
 默认产物：
-- `prd/current/output/{feature-name}-image-analysis.md`
-- `prd/current/output/{feature-name}-image-analysis.json`
-- `prd/current/output/.cache/prd-image-parser/` 缓存目录
+- `prd/{需求目录}/output/{feature-name}-image-analysis.md`
+- `prd/{需求目录}/output/{feature-name}-image-analysis.json`
+- `prd/{需求目录}/output/.cache/prd-image-parser/` 缓存目录
 
 使用要求：
 - 阅读图片解析 Markdown 结果，把图片中的页面结构、组件信息、交互状态、流程节点补充进最终分析报告
@@ -83,10 +84,11 @@ python3 skills/qa-prd-analysis/scripts/prd_image_parser.py \
 ## 执行流程
 
 ### Step 1：定位待分析 PRD
-1. 扫描 `prd/current/` 下的 `.md` 文件。
-2. 排除 `prd/current/output/` 下的产出文件。
-3. 确定唯一目标 PRD 文件与 `feature-name`。
-4. 若无法唯一确定，询问用户。
+1. 扫描 `prd/` 下的需求目录，排除 `prd/archive/`。
+2. 根据用户输入先确认需求目录名；若未传参数且存在多个目录，必须先让用户确认。
+3. 在目标目录下扫描 `.md` 文件，并排除 `output/` 下的产出文件。
+4. 优先匹配与目录同名的主 PRD 文件；若有多个候选文件，必须先确认。
+5. 确定唯一目标 PRD 文件、`feature-dir` 与 `feature-name`。
 
 ### Step 2：预检 PRD 质量与规模
 检查并记录：
@@ -103,7 +105,7 @@ python3 skills/qa-prd-analysis/scripts/prd_image_parser.py \
 
 如果存在图片引用：
 - 先执行 `skills/qa-prd-analysis/scripts/prd_image_parser.py`
-- 优先读取 `prd/current/output/{feature-name}-image-analysis.md`
+- 优先读取 `prd/{feature-dir}/output/{feature-name}-image-analysis.md`
 - 将图片解析结果与对应章节正文交叉校验，提取页面结构、组件状态、流程分支、限制条件
 
 ### Step 3：提取需求核心信息与结构化分析
@@ -134,7 +136,7 @@ python3 skills/qa-prd-analysis/scripts/prd_image_parser.py \
 - 待补充资料（接口、图片、状态机、角色权限等）
 
 ### Step 4：输出分析报告
-报告格式结构参考`analysis-template.md`，写入：`prd/current/output/{feature-name}-analysis.md`
+报告格式结构参考`analysis-template.md`，写入：`prd/{feature-dir}/output/{feature-name}-analysis.md`
 
 ### Step 5：完成汇报
 完成后向用户明确反馈：
