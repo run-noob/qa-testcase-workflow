@@ -33,6 +33,52 @@ description: 分析 prd/current 下的 PRD 文档，输出结构化需求分析�
 10. 编号命名规范，所有组件、流程使用统一编号格式：{SystemModule}-{Component}
     - SystemModule: 从系统角度划分的模块，如Trade：交易模块
     - Component：页面下的某一个区块或者子组件（注意划分的颗粒度），如Filter：筛选组件; SubmitBtn: 提交按钮
+11. 当 PRD 含有原型图、流程图、截图等图片信息时，优先使用 `skills/qa-prd-analysis/scripts/prd_image_parser.py` 生成图片解析结果，再将结果纳入需求分析报告。
+
+## 图片解析辅助脚本
+
+当 PRD 中包含图片，且图片承载了页面布局、交互状态、流程流转、字段说明等关键信息时，先运行图片解析脚本，再继续正文分析。
+
+脚本路径：
+- `skills/qa-prd-analysis/scripts/prd_image_parser.py`
+
+适用场景：
+- PRD 中有 UI 原型图、流程图、架构图、页面截图
+- Markdown 正文对图片说明不足，需要从视觉内容补全组件与交互信息
+- 只想针对某一张图做深度分析，辅助确认模块边界或流程细节
+
+推荐命令：
+
+```bash
+python3 skills/qa-prd-analysis/scripts/prd_image_parser.py \
+  --prd-file prd/current/{需求名}.md
+```
+
+单图深度解析：
+
+```bash
+python3 skills/qa-prd-analysis/scripts/prd_image_parser.py \
+  --prd-file prd/current/{需求名}.md \
+  --image-path images/{图片名}.png \
+  --detail-level deep
+```
+
+常用参数：
+- `--prd-file`：必填，目标 PRD Markdown 文件
+- `--image-path`：选填，只分析某一张图片时使用，支持相对路径或绝对路径
+- `--detail-level`：图片解析深度，可选 `brief`、`standard`、`deep`
+- `--force-refresh`：忽略缓存，强制重新生成 PRD 摘要和图片分析结果
+- `--include-image-snippet`：在输出中附带原始图片引用语句
+
+默认产物：
+- `prd/current/output/{feature-name}-image-analysis.md`
+- `prd/current/output/{feature-name}-image-analysis.json`
+- `prd/current/output/.cache/prd-image-parser/` 缓存目录
+
+使用要求：
+- 阅读图片解析 Markdown 结果，把图片中的页面结构、组件信息、交互状态、流程节点补充进最终分析报告
+- 如果脚本输出了 `[无法识别: xxx]`、错误日志或缺失图片，需要在分析报告中保留不确定性说明，不要自行脑补
+- 如果图片很多，选择关键图片使用 `--image-path --detail-level deep` 进行分析
 
 ## 执行流程
 
@@ -55,6 +101,11 @@ description: 分析 prd/current 下的 PRD 文档，输出结构化需求分析�
 - 按章节或模块分段读取
 - 每段提炼中间结论，最后统一合并
 
+如果存在图片引用：
+- 先执行 `skills/qa-prd-analysis/scripts/prd_image_parser.py`
+- 优先读取 `prd/current/output/{feature-name}-image-analysis.md`
+- 将图片解析结果与对应章节正文交叉校验，提取页面结构、组件状态、流程分支、限制条件
+
 ### Step 3：提取需求核心信息与结构化分析
 
 #### 3.1 需求概览
@@ -67,13 +118,13 @@ description: 分析 prd/current 下的 PRD 文档，输出结构化需求分析�
 - 计划上线时间（如有）
 
 #### 3.2 功能模块清单
-梳理需求，按系统模块=>页面=>页面模块/组件进行结构层级划分，包含功能概览、页面结构与交互流等子章节，对于复杂的系统模块另加页面功能层级关系图、页面功能矩阵、页面跳转关系图
+梳理需求，按系统模块=>页面=>页面模块/组件进行结构层级划分，包含功能概览、页面结构与交互流等子章节，对于复杂的系统模块另加页面功能层级关系图、页面功能矩阵、页面跳转关系图。若图片解析结果中补充了页面布局、入口出口、显隐条件、状态差异，需要一并合入。
 
 #### 3.3 组件级交互说明
-通过标准化的编号与结构化维度，详尽定义页面内各组件的功能描述、优先级、视觉特征表现、交互逻辑，旨在为开发与测试提供精确的组件级功能规格参考
+通过标准化的编号与结构化维度，详尽定义页面内各组件的功能描述、优先级、视觉特征表现、交互逻辑，旨在为开发与测试提供精确的组件级功能规格参考。组件的视觉特征、状态变化、按钮可用性、提示文案等，可结合图片解析结果补充。
 
 #### 3.4 核心业务流程
-*针对跨多个页面模块组件的复杂业务*，梳理其核心流程
+*针对跨多个页面模块组件的复杂业务*，梳理其核心流程。若流程图来自图片，需将节点、分支条件、流转方向转写成文本，不要只引用原图。
 
 #### 3.5 风险与疑问
 标记：
