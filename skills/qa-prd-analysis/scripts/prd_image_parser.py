@@ -30,7 +30,7 @@ from urllib import error, request
 
 SUMMARY_PROMPT_VERSION = "v1"
 IMAGE_PROMPT_VERSION = "v1"
-DEFAULT_MAX_IMAGES = 5
+DEFAULT_MAX_IMAGES = 50
 DEFAULT_RETRY = 2
 DEFAULT_TIMEOUT = 60
 CONTEXT_WINDOW = 20
@@ -108,6 +108,8 @@ def load_text(path: Path) -> str:
 def ensure_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
+def get_download_dir(prd_dir: Path):
+    return prd_dir / "downloaded-images"
 
 def extract_markdown_images(prd_text: str, prd_dir: Path) -> List[ImageRef]:
     # 模式定义（注意：字符类 [^>] 和 [^)] 默认匹配换行符，无需 DOTALL）
@@ -147,10 +149,15 @@ def extract_markdown_images(prd_text: str, prd_dir: Path) -> List[ImageRef]:
             raw_path = cleanup_markdown_link_path(src_match.group(2).strip())
             alt = alt_match.group(2).strip() if alt_match else ""
 
-        resolved = (prd_dir / raw_path).resolve() if not Path(raw_path).is_absolute() else Path(raw_path).resolve()
-        if not resolved.exists():
-            print(f"[WARNING] image path: {resolved} does not exists")
-            continue
+        if is_http_url(raw_path):
+            resolved = download_image(raw_path, prd_dir)
+            if resolved is None:
+                continue
+        else:
+            resolved = (prd_dir / raw_path).resolve() if not Path(raw_path).is_absolute() else Path(raw_path).resolve()
+            if not resolved.exists():
+                print(f"[WARNING] image path: {resolved} does not exists")
+                continue
         # raw_line 使用整个匹配到的原始字符串（可能包含换行）
         raw_line = match.group(0)
 
@@ -178,7 +185,36 @@ def cleanup_markdown_link_path(raw: str) -> str:
     return candidate
 
 
+def is_http_url(path: str) -> bool:
+    return path.startswith("http://") or path.startswith("https://")
+
+
+def download_image(url: str, prd_dir: Path) -> Optional[Path]:
+    """Download an image from a URL to a local cache directory."""
+    url_hash = hashlib.md5(url.encode()).hexdigest()
+    parsed = url.split("?")[0]
+    suffix = Path(parsed).suffix.lower()
+    if suffix not in (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"):
+        suffix = ".png"
+    download_dir = get_download_dir(prd_dir)
+    local_path = download_dir / f"{url_hash}{suffix}"
+    if local_path.exists():
+        return local_path
+    ensure_dir(download_dir)
+    try:
+        request.urlretrieve(url, str(local_path))
+        return local_path
+    except Exception as e:
+        print(f"[WARNING] Failed to download {url}: {e}")
+        return None
+
+
 def resolve_single_image_path(prd_dir: Path, user_image_path: str, cwd: Path) -> Path:
+    if is_http_url(user_image_path):
+        local = download_image(user_image_path, prd_dir)
+        if local is not None:
+            return local
+        return Path(user_image_path)
     candidate = Path(user_image_path)
     if candidate.is_absolute() and candidate.exists():
         return candidate.resolve()
@@ -267,28 +303,6 @@ def image_analysis_key(
         sort_keys=True,
     )
     return sha256_text(payload)
-
-
-# def _extract_output_text(resp: Dict[str, Any]) -> str:
-#     if isinstance(resp.get("output_text"), str) and resp["output_text"].strip():
-#         return resp["output_text"].strip()
-#
-#     output = resp.get("output", [])
-#     texts: List[str] = []
-#     if isinstance(output, list):
-#         for item in output:
-#             content = item.get("content", []) if isinstance(item, dict) else []
-#             if not isinstance(content, list):
-#                 continue
-#             for c in content:
-#                 if not isinstance(c, dict):
-#                     continue
-#                 ctype = c.get("type")
-#                 if ctype in ("output_text", "text"):
-#                     value = c.get("text")
-#                     if isinstance(value, str) and value.strip():
-#                         texts.append(value.strip())
-#     return "\n".join(texts).strip()
 
 
 def _openai_responses_call(
@@ -449,23 +463,30 @@ def build_md_report(
     include_image_snippet: bool,
 ) -> str:
     lines: List[str] = []
-    lines.append(f"# PRD 图片解析报告 - {meta['feature_name']}")
-    lines.append("")
-    lines.append("## 元信息")
-    lines.append(f"- PRD 文件: `{meta['prd_file']}`")
-    lines.append(f"- 生成时间(UTC): `{meta['generated_at']}`")
-    lines.append(f"- 模型: `{meta['model']}`")
-    lines.append(f"- 模式: `{meta['mode']}`")
-    lines.append("")
-    lines.append("## 图片解析结果")
-    if not images:
-        lines.append("- 无可解析图片")
+    if meta['mode'] == "single-image":
+        lines.append("图片解析结果:\n")
+    else:
+        lines.append(f"# PRD 图片解析报告 - {meta['feature_name']}")
+        lines.append("")
+        lines.append("## 元信息")
+        lines.append(f"- PRD 文件: `{meta['prd_file']}`")
+        lines.append(f"- 生成时间(UTC): `{meta['generated_at']}`")
+        lines.append(f"- 模型: `{meta['model']}`")
+        lines.append(f"- 模式: `{meta['mode']}`")
+        lines.append("")
+        lines.append("## 图片解析结果")
+        if not images:
+            lines.append("- 无可解析图片")
+
     for item in images:
         lines.append(f"### {item['image_id']}")
-        lines.append(f"- 图片路径: `{item['image_path']}`")
+        lines.append(f"- 图片路径: `{item['raw_path']}`")
         lines.append(f"- 来源行号: `{item['source_line']}`")
         if include_image_snippet and item.get("image_snippet"):
             lines.append(f"- Markdown 引用: `{item['image_snippet']}`")
+        lines.append("")
+        alt_text = item.get("alt") or item["image_id"]
+        lines.append(f"![{alt_text}]({item['raw_path']})")
         lines.append("")
         lines.append(item["analysis_text"])
         lines.append("")
@@ -480,7 +501,7 @@ def build_md_report(
 def main() -> int:
     args = parse_args()
     if not args.emit_json and not args.emit_md:
-        args.emit_json = True
+        args.emit_json = False
         args.emit_md = True
 
     prd_file = Path(args.prd_file).resolve()
@@ -622,6 +643,7 @@ def main() -> int:
                     "detail_level": args.detail_level,
                     "created_at": now_iso(),
                     "image_path": str(ref.resolved_path),
+                    "raw_path": str(ref.raw_path),
                     "analysis_text": analysis_text,
                 },
             )
@@ -629,7 +651,9 @@ def main() -> int:
         out_item: Dict[str, Any] = {
             "image_id": ref.image_id,
             "image_path": str(ref.resolved_path),
+            "raw_path": str(ref.raw_path),
             "source_line": ref.line_no,
+            "alt": ref.alt,
             "analysis_text": analysis_text,
         }
         if args.include_image_snippet:
@@ -669,6 +693,7 @@ def main() -> int:
             include_image_snippet=args.include_image_snippet,
         )
         md_path.write_text(md_text, encoding="utf-8")
+        print(md_text)
     if errors:
         log_path.write_text("\n".join(errors) + "\n", encoding="utf-8")
 
@@ -686,11 +711,12 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    import sys
-    sys.argv[1:] = [
-        "--prd-file",
-        "/Users/zengzhihua/Documents/code/testing-wiki/huya-pc-web/prd/web-nav/web顶部栏tab异化图标支持配置.md",
-        # "--image-path",
-        # "images/f2dda1df57298c02c4aafb599c56200d2ca201c12256e90d076f9393f02e5881.png"
-    ]
+    # import sys
+    # sys.argv[1:] = [
+    #     "--prd-file",
+    #     # "/Users/zengzhihua/Documents/code/testing-wiki/huya-pc-web/prd/web-nav/web顶部栏tab异化图标支持配置.md",
+    #     "/Users/zengzhihua/Documents/code/testing-wiki/huya-pc-web/prd/buffvip/日麻AI助手购买会员.md",
+    #     # "--image-path",
+    #     # "images/f2dda1df57298c02c4aafb599c56200d2ca201c12256e90d076f9393f02e5881.png"
+    # ]
     sys.exit(main())
