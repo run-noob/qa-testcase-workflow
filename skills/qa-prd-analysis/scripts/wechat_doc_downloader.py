@@ -5,6 +5,7 @@ import requests
 import json
 import re
 import os
+import argparse
 from urllib.parse import unquote
 import logging
 
@@ -17,26 +18,10 @@ class WechatDocDownloader:
 
     def __init__(self):
         # 读取 cookie 文件
-        # if cookie_path is None:
-        #     project_root = os.path.dirname(os.path.abspath(__file__))
-        #     cookie_path = os.path.join(project_root, 'cookie.txt')
-        # with open(cookie_path, 'r') as f:
-        #     self.cookie = f.read().strip()
+        cookie_path = os.path.join(os.path.expanduser("~"), ".qa-testcase-workflow", ".wechat_doc_cookies")
+        with open(cookie_path, 'r') as f:
+            self.cookie = f.read().strip()
         self.base_url = "https://doc.weixin.qq.com"
-        self.cookie = (
-            "TOK=15c3008c9b30ad80; "
-            "traceid=15c3008c9b; "
-            "hashkey=15c3008c; "
-            "TrustID=w___adc9f955-ed81-4c92-b667-5de5ade77bd4; "
-            "tdoc_uid=13102703683689817; "
-            "wedoc_openid=wozbKqDgAABp_eb8R4Hi9zB9CPEtXOBw; "
-            "wedoc_sid=1ll0RYzdZHYuqVRXAO41UgAA; "
-            "wedoc_sids=13102703683689817&1ll0RYzdZHYuqVRXAO41UgAA; "
-            "wedoc_skey=13102703683689817&1947952740340f2c9a1b79bd6f13b1a4; "
-            "wedoc_ticket=13102703683689817&CAESIIcRail5tVcuk97zGBHQvhpnqvcgB23qtHmRt6d0xzpl; "
-            "backup_cdn_domain=res.wx.qq.com; "
-            "window_width=1920; "
-        )
         self.referer_url = self.base_url
         self.sid = ""
 
@@ -231,26 +216,24 @@ class WechatDocDownloader:
 
 # 使用示例
 if __name__ == '__main__':
-    import argparse
-
     parser = argparse.ArgumentParser(
         description="下载腾讯文档（wechat doc），支持 sheet/excel、doc/docx、pdf 格式"
     )
     parser.add_argument(
         "doc_url",
-        help="腾讯文档 URL，以 https://doc.weixin.qq.com/ 开头",
+        help="腾讯企业微信在线文档 URL，以 https://doc.weixin.qq.com/ 开头",
     )
     parser.add_argument(
         "--output-dir", "-o",
-        default="./",
-        help="下载文件保存目录（默认: 当前目录）",
+        default=os.path.join(os.path.expanduser("~"), "Downloads"),
+        help="下载文件保存目录（默认: ~/Downloads)",
     )
     args = parser.parse_args()
 
     downloader = WechatDocDownloader()
-    result = downloader.download(args.doc_url, output_dir=args.output_dir)
-    if result:
-        print(result)
+    download_path = downloader.download(args.doc_url, output_dir=args.output_dir)
+    if download_path:
+        print(f"download {args.doc_url} successfull, output path: {download_path}")
     else:
         exit(1)
     # 下载 Excel
