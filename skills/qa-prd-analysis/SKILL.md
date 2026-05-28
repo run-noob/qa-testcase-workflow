@@ -32,7 +32,7 @@ description: 分析 prd/{需求目录} 下的 PRD 文档，输出结构化需求
 10. 如果 PRD 超过 3000 行，先生成结构化大纲，再按章节分段分析，最后汇总。
 11. 如果 PRD 中含有原型图、流程图、截图等图片信息时，且当前模型不支持视觉能力。
     - **严禁**尝试使用 `READ`、打开二进制文件或其他文件读取方式处理图片。
-    - **必须**使用图片解析脚本 `skills/qa-prd-analysis/scripts/prd_image_parser.py`（该脚本使用的是专门的多模态模型） 生成图片解析结果并纳入需求分析报告。
+    - **必须**使用图片解析脚本 `~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/prd_image_parser.py`（该脚本使用的是专门的多模态模型） 生成图片解析结果并纳入需求分析报告。
 12. 编号命名规范，所有组件、流程使用统一编号格式：{SystemModule}-{Component}
     - SystemModule: 从系统角度划分的模块，如Trade：交易模块
     - Component：页面下的某一个区块或者子组件（注意划分的颗粒度），如Filter：筛选组件; SubmitBtn: 提交按钮
@@ -42,7 +42,7 @@ description: 分析 prd/{需求目录} 下的 PRD 文档，输出结构化需求
 当 PRD 中包含图片，且图片承载了页面布局、交互状态、流程流转、字段说明等关键信息时，先运行图片解析脚本，再继续正文分析。
 
 脚本路径：
-- `skills/qa-prd-analysis/scripts/prd_image_parser.py`
+- `~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/prd_image_parser.py`
 
 适用场景：
 - PRD 中有 UI 原型图、流程图、架构图、页面截图
@@ -52,14 +52,14 @@ description: 分析 prd/{需求目录} 下的 PRD 文档，输出结构化需求
 推荐命令：
 
 ```bash
-python3 skills/qa-prd-analysis/scripts/prd_image_parser.py \
+python3 ~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/prd_image_parser.py \
   --prd-file prd/{需求目录}/{需求目录}.md
 ```
 
 单图深度解析：
 
 ```bash
-python3 skills/qa-prd-analysis/scripts/prd_image_parser.py \
+python3 ~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/prd_image_parser.py \
   --prd-file prd/{需求目录}/{需求目录}.md \
   --image-path images/{图片名}.png \
   --detail-level deep
@@ -82,6 +82,35 @@ python3 skills/qa-prd-analysis/scripts/prd_image_parser.py \
 - 如果脚本输出了 `[无法识别: xxx]`、错误日志或缺失图片，需要在分析报告中保留不确定性说明，不要自行脑补
 - 如果图片很多，选择关键图片使用 `--image-path --detail-level deep` 进行分析
 
+## 在线文档下载辅助脚本
+
+当 PRD 正文中引用了 `https://doc.weixin.qq.com/` 域名下的腾讯企业微信在线文档链接，说明关键信息在在线文档上，需要将这些在线文档下载到本地再纳入需求分析。
+
+脚本路径：
+- `~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/wechat_doc_downloader.py`
+
+适用场景：
+- PRD 正文中出现了 `https://doc.weixin.qq.com/sheet/...` 或 `https://doc.weixin.qq.com/doc/...` 等在线文档链接
+- 在线文档包含了需求功能描述、数据字段定义、流程图说明等 PRD 正文未覆盖的关键信息
+- 希望将在线文档下载为本地文件，方便后续离线分析或归档
+
+推荐命令：
+
+```bash
+python3 ~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/wechat_doc_downloader.py \
+  "https://doc.weixin.qq.com/sheet/e3_AbYA7wb9AAYCNoSNuQCISQ0aTj0ej" \
+  --output-dir prd/{需求目录}
+```
+
+常用参数：
+- `doc_url`：必填，腾讯文档 URL，支持 `sheet`、`doc`、`pdf` 三种类型
+- `--output-dir` / `-o`：选填，下载文件保存目录，默认为当前目录
+
+注意事项：
+- 脚本依赖内置 Cookie 完成认证，若 Cookie 失效或需要验证码，下载将失败，立即终止流程，通知用户手动下载该文档放到需求目录内
+- 下载成功后会在指定目录生成对应文件（Excel/Docx/PDF），并在控制台输出本地文件路径
+- 如果 PRD 中同时存在图片和在线文档链接，优先并行执行图片解析脚本和文档下载脚本，再汇总分析
+
 ## 执行流程
 
 ### Step 1：定位待分析 PRD
@@ -97,7 +126,7 @@ python3 skills/qa-prd-analysis/scripts/prd_image_parser.py \
 - 是否包含功能描述
 - 是否包含 UI 交互说明、流程图或图片引用
 - 是否包含接口说明（如有）
-- 文档总行数、主要章节数、图片引用数
+- 文档总行数、主要章节数、图片引用数、在线文档引用数
 
 如文档较大：
 - 先输出文档结构大纲
@@ -105,9 +134,13 @@ python3 skills/qa-prd-analysis/scripts/prd_image_parser.py \
 - 每段提炼中间结论，最后统一合并
 
 如果存在图片引用：
-- 先执行 `skills/qa-prd-analysis/scripts/prd_image_parser.py`
+- 先执行 `~/.claude/plugins/marketplaces/qa-plugins/skills/skills/qa-prd-analysis/scripts/prd_image_parser.py`
 - 优先读取 `prd/{feature-dir}/output/{feature-name}-image-analysis.md`
 - 将图片解析结果与对应章节正文交叉校验，提取页面结构、组件状态、流程分支、限制条件
+
+如果 PRD 正文中包含 `https://doc.weixin.qq.com/` 链接：
+- 先执行 `~/.claude/plugins/marketplaces/qa-plugins/skills/skills/qa-prd-analysis/scripts/wechat_doc_downloader.py` 将所有在线文档下载到 `prd/{feature-dir}/` 目录
+- 下载后将本地文件内容作为 PRD 正文的补充材料一并分析
 
 ### Step 3：提取需求核心信息与结构化分析
 
