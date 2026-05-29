@@ -32,8 +32,9 @@ description: 分析 prd/{需求目录} 下的 PRD 文档，输出结构化需求
 10. 如果 PRD 超过 3000 行，先生成结构化大纲，再按章节分段分析，最后汇总。
 11. 如果 PRD 中含有原型图、流程图、截图等图片信息时，且当前模型不支持视觉能力。
     - **严禁**尝试使用 `READ`、打开二进制文件或其他文件读取方式处理图片。
-    - **必须**使用图片解析脚本 `~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/prd_image_parser.py`（该脚本使用的是专门的多模态模型） 生成图片解析结果并纳入需求分析报告。
-12. 编号命名规范，所有组件、流程使用统一编号格式：{SystemModule}-{Component}
+    - **必须**使用图片解析脚本 `prd_image_parser.py`（该脚本使用的是专门的多模态模型） 生成图片解析结果并纳入需求分析报告。
+12. **严禁直接读取非 Markdown 格式的 PRD 文件**（如 `.docx`、`.pdf`、`.pptx`、`.xlsx`、`.png` 等二进制或 Office 格式文件）。若 PRD 文件不是 `.md` 格式，必须先使用 `doc_convert_to_markdown.py` 脚本将其转换为 Markdown，再读取转换后的 `.md` 文件进行分析。
+13. 编号命名规范，所有组件、流程使用统一编号格式：{SystemModule}-{Component}
     - SystemModule: 从系统角度划分的模块，如Trade：交易模块
     - Component：页面下的某一个区块或者子组件（注意划分的颗粒度），如Filter：筛选组件; SubmitBtn: 提交按钮
 
@@ -111,17 +112,63 @@ python3 ~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts
 - 下载成功后会在指定目录生成对应文件（Excel/Docx/PDF），并在控制台输出本地文件路径
 - 如果 PRD 中同时存在图片和在线文档链接，优先并行执行图片解析脚本和文档下载脚本，再汇总分析
 
+## 文档格式转换辅助脚本
+
+当需求目录下的 PRD 文档为非 Markdown 格式（如 `.docx`、`.xlsx`、`.pptx`、`.pdf`等）时，必须先使用转换脚本将其转为 Markdown，再读取转换后的 `.md` 文件进行分析。
+
+脚本路径：
+- `~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/doc_convert_to_markdown.py`
+
+适用场景：
+- PRD 主文档为 `.docx`、`.pdf`、`.pptx`、`.xlsx` 或图片格式
+- 需求目录中不存在同名 `.md` 文件，仅存在二进制/Office 格式文档
+- 需要将非 Markdown 文档转为大模型可读的 Markdown 格式
+
+推荐命令：
+
+```bash
+python3 ~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/doc_convert_to_markdown.py \
+  prd/{需求目录}/{需求文档}.docx \
+```
+
+常用参数：
+- `file`：必填，输入文件路径，支持 PDF/DOCX/PPTX/XLSX/图片
+- `--poll-interval`：异步模式轮询间隔秒数（默认: 2）
+- `--max-wait`：异步模式最大等待秒数（默认: 120）
+- `--health`：仅检查服务健康状态后退出
+
+转换产物：
+- 在源文件同目录下生成 `{源文件名}.zip` 中间产物
+- 解压后生成 `{源文件名}.md` 和 `images/` 图片目录
+
+使用要求：
+- **严禁直接读取非 Markdown 格式的 PRD 文件**（如 docx、pdf、pptx、xlsx、png 等二进制文件），必须先转换为 Markdown 再读取
+- 转换完成后，读取生成的 `.md` 文件作为 PRD 正文进行分析
+
 ## 执行流程
 
 ### Step 1：定位待分析 PRD
 1. 扫描 `prd/` 下的需求目录，排除 `prd/archive/`。
 2. 根据用户输入先确认需求目录名；若未传参数且存在多个目录，必须先让用户确认。
-3. 在目标目录下扫描 `.md` 文件，并排除 `output/` 下的产出文件。
+3. 在目标目录下扫描 PRD 文件（优先 `.md`，也需关注 `.docx`、`.pdf`、`.pptx`、`.xlsx` 等格式），排除 `output/` 下的产出文件。
 4. 优先匹配与目录同名的主 PRD 文件；若有多个候选文件，必须先确认。
 5. 确定唯一目标 PRD 文件、`feature-dir` 与 `feature-name`。
+6. **格式检查与转换**：若确定的 PRD 文件不是 `.md` 格式，必须先执行文档格式转换脚本将其转为 Markdown，再继续后续分析。严禁跳过转换直接读取非 Markdown 文件。
 
 ### Step 2：预检 PRD 质量与规模
+
+若 PRD 文件不是 `.md` 格式，先执行文档格式转换脚本：
+
+```bash
+python3 ~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/doc_convert_to_markdown.py \
+  prd/{feature-dir}/{prd-filename} \
+  --mode async
+```
+
+转换成功后，后续步骤使用生成的 `.md` 文件作为 PRD 正文。
+
 检查并记录：
+- 文档格式（原始格式 → Markdown，如有转换）
 - 是否包含需求背景/目标
 - 是否包含功能描述
 - 是否包含 UI 交互说明、流程图或图片引用
@@ -134,13 +181,14 @@ python3 ~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts
 - 每段提炼中间结论，最后统一合并
 
 如果存在图片引用：
-- 先执行 `~/.claude/plugins/marketplaces/qa-plugins/skills/skills/qa-prd-analysis/scripts/prd_image_parser.py`
+- 先执行 `~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/prd_image_parser.py`
 - 优先读取 `prd/{feature-dir}/output/{feature-name}-image-analysis.md`
 - 将图片解析结果与对应章节正文交叉校验，提取页面结构、组件状态、流程分支、限制条件
 
 如果 PRD 正文中包含 `https://doc.weixin.qq.com/` 链接：
-- 先执行 `~/.claude/plugins/marketplaces/qa-plugins/skills/skills/qa-prd-analysis/scripts/wechat_doc_downloader.py` 将所有在线文档下载到 `prd/{feature-dir}/` 目录
-- 下载后将本地文件内容作为 PRD 正文的补充材料一并分析
+- 先执行 `~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/wechat_doc_downloader.py` 将所有在线文档下载到 `prd/{feature-dir}/` 目录
+- 下载后优先调用doc_convert_to_markdown.py转为markdown格式
+- 将转后markdown内容作为 PRD 正文的补充材料一并分析
 
 ### Step 3：提取需求核心信息与结构化分析
 

@@ -5,10 +5,11 @@
 """
 
 import asyncio
-import os
+import os.path
 import sys
+import zipfile
+import shutil
 from pathlib import Path
-from typing import Optional
 import httpx
 DEFAULT_BASE_URL = "http://10.159.154.2:8005"
 DEFAULT_POLL_INTERVAL = 2  # 轮询间隔（秒）
@@ -23,16 +24,44 @@ async def health_check() -> dict:
         return resp.json()
 
 
-def save_zip_file(file_path: Path, content: bytes):
+def save_zip_file(file_path: Path, content: bytes) -> Path:
     zip_path = str(file_path).replace(file_path.suffix, ".zip")
     with open(zip_path, "wb") as f:
         f.write(content)
-        return zip_path
+    return Path(zip_path)
+
+
+def extract_zip(zip_path: Path) -> Path:
+    """
+    解压 zip 文件，读取其中的 markdown 内容。
+
+    解压到原文件所在目录下的 {filename}_output/ 目录，
+    返回主 markdown 文件的内容。
+    """
+    extract_dir = zip_path.parent
+    print(f"正在解压结果: {zip_path.name}")
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        zf.extractall(extract_dir)
+    office_dir = extract_dir / zip_path.stem / "office"
+    if not office_dir.exists():
+        raise FileNotFoundError(f"解压后目录为空")
+    for name in os.listdir(office_dir):
+        shutil.move(os.path.join(office_dir, name), extract_dir)
+    shutil.rmtree(office_dir.parent)
+    main_md = extract_dir / f"{zip_path.stem}.md"
+    if not main_md.exists():
+        raise FileNotFoundError(f"解压后未找到文件: {main_md}")
+    images_dir = extract_dir / "images"
+    print(f"Markdown文件解压到路径: {extract_dir}")
+    if images_dir.exists():
+        print(f"Markdown文件内引用的图片目录：{images_dir}")
+    print(f"文档转换成功！output：{main_md}")
+    return main_md
 
 
 async def convert_sync(
     file_path: str | Path,
-) -> str:
+) -> Path:
     """
     同步模式：上传文件并等待转换结果。
 
@@ -73,7 +102,7 @@ async def submit_task(
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         with open(file_path, "rb") as f:
-            form_data = {"return_md": False, "response_format_zip": True,
+            form_data = {"return_md": True, "response_format_zip": True,
                          "return_original_file": False, "return_images": True}
             files = {"files": (file_path.name, f, "application/octet-stream")}
             resp = await client.post(
@@ -109,7 +138,7 @@ async def convert_async(
     file_path: str | Path,
     poll_interval: float = DEFAULT_POLL_INTERVAL,
     max_wait: float = DEFAULT_MAX_WAIT,
-) -> str:
+) -> Path:
     """
     异步模式：提交任务，轮询等待完成，返回最终结果。
 
@@ -141,7 +170,7 @@ async def convert_async(
         # state 可能为 "pending"、"processing"、"queued" 等
         queued = status.get("queued_ahead", 0)
         if queued > 0:
-            print(f"  任务排队中，前方还有 {queued} 个任务...", file=sys.stderr)
+            print(f"  任务排队中，前方还有 {queued} 个任务...")
 
     raise TimeoutError(
         f"转换任务超时 task_id={task_id}，已等待 {max_wait}s"
@@ -153,7 +182,7 @@ async def convert_to_markdown(
     mode: str = "sync",
     poll_interval: float = DEFAULT_POLL_INTERVAL,
     max_wait: float = DEFAULT_MAX_WAIT,
-) -> str:
+) -> Path:
     """
     将文档转换为 Markdown 文本。
 
@@ -167,8 +196,6 @@ async def convert_to_markdown(
         转换后的 zip 文件路径
     """
     file_path = Path(file_path)
-
-    print(f"正在转换文档: {file_path.name}", file=sys.stderr)
 
     if mode == "sync":
         zip_path = await convert_sync(file_path)
@@ -185,23 +212,26 @@ def convert_file(
     mode: str = "sync",
     poll_interval: float = DEFAULT_POLL_INTERVAL,
     max_wait: float = DEFAULT_MAX_WAIT,
-) -> str:
+) -> Path:
     """
-    同步入口：将文件转换为 Markdown，保存到原文件目录下。
+    同步入口：将文件转换为 Markdown 文本，解压后返回内容。
 
     Args:
         file_path: 输入文件路径
         mode: 转换模式
         poll_interval: 轮循间隔
         max_wait: 最大等待时间
+
+    Returns:
+        转换后的 markdown 文本内容
     """
-    zip_path = asyncio.run(
+    file_path = Path(file_path)
+    print(f"开始文档转换: {file_path}")
+    _zip_path = asyncio.run(
         convert_to_markdown(file_path, mode, poll_interval, max_wait)
     )
-    if zip_path and os.path.exists(zip_path):
-        print(f"zip file path: {zip_path}")
-
-        return zip_path
+    print(f"服务端转换完成, 下载到本地的zip路径: {_zip_path}")
+    return _zip_path
 
 
 if __name__ == "__main__":
@@ -215,7 +245,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--mode",
         type=str,
-        default="async",
+        default="sync",
         choices=["sync", "async"],
         help="转换模式: sync 同步 / async 异步（默认: sync）",
     )
@@ -244,17 +274,12 @@ if __name__ == "__main__":
         print(health_result)
         sys.exit(0)
 
-    markdown = convert_file(
+    zip_file = convert_file(
         file_path=args.file,
         mode=args.mode,
         poll_interval=args.poll_interval,
         max_wait=args.max_wait,
     )
 
-"""
-curl -X POST http://10.159.154.2:8005/file_parse \
-  -F "files=@/Users/zengzhihua/Documents/code/testing-wiki/huya-pc-web/web顶部栏tab异化图标支持配置_origin.docx" \
-  -F "return_md=true" \
-  -F "response_format_zip=true" \
-  -F "return_original_file=true"
-"""
+    extract_zip(zip_file)
+
