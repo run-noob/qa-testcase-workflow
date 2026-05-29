@@ -1,0 +1,260 @@
+"""
+文档转 Markdown 工具，基于 mineru 服务。
+
+将 PDF、DOCX、PPTX、XLSX、图片等格式文档转换为 Markdown。
+"""
+
+import asyncio
+import os
+import sys
+from pathlib import Path
+from typing import Optional
+import httpx
+DEFAULT_BASE_URL = "http://10.159.154.2:8005"
+DEFAULT_POLL_INTERVAL = 2  # 轮询间隔（秒）
+DEFAULT_MAX_WAIT = 120  # 异步模式最大等待时间（秒）
+
+
+async def health_check() -> dict:
+    """检测 mineru 服务健康状态。"""
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.get(f"{DEFAULT_BASE_URL}/health")
+        resp.raise_for_status()
+        return resp.json()
+
+
+def save_zip_file(file_path: Path, content: bytes):
+    zip_path = str(file_path).replace(file_path.suffix, ".zip")
+    with open(zip_path, "wb") as f:
+        f.write(content)
+        return zip_path
+
+
+async def convert_sync(
+    file_path: str | Path,
+) -> str:
+    """
+    同步模式：上传文件并等待转换结果。
+
+    Returns:
+        dict 包含 status, md_content, files 等字段
+    """
+    file_path = Path(file_path)
+    if not file_path.exists():
+        raise FileNotFoundError(f"文件不存在: {file_path}")
+
+    async with httpx.AsyncClient(timeout=DEFAULT_MAX_WAIT) as client:
+        with open(file_path, "rb") as f:
+            form_data = {
+                "return_md": True,
+                "response_format_zip": True,
+                "return_original_file": False,
+                "return_images": True
+            }
+            files = {"files": (file_path.name, f, "application/octet-stream")}
+            resp = await client.post(
+                f"{DEFAULT_BASE_URL}/file_parse",
+                data=form_data,
+                files=files,
+            )
+            resp.raise_for_status()
+            return save_zip_file(file_path, resp.content)
+
+
+async def submit_task(
+    file_path: str | Path,
+) -> str:
+    """
+    异步模式：提交转换任务，返回 task_id。
+    """
+    file_path = Path(file_path)
+    if not file_path.exists():
+        raise FileNotFoundError(f"文件不存在: {file_path}")
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        with open(file_path, "rb") as f:
+            form_data = {"return_md": False, "response_format_zip": True,
+                         "return_original_file": False, "return_images": True}
+            files = {"files": (file_path.name, f, "application/octet-stream")}
+            resp = await client.post(
+                f"{DEFAULT_BASE_URL}/tasks",
+                data=form_data,
+                files=files,
+            )
+            resp.raise_for_status()
+            result = resp.json()
+            task_id = result.get("task_id")
+            if not task_id:
+                raise RuntimeError(f"提交任务失败，未返回 task_id: {result}")
+            return task_id
+
+
+async def get_task_status(task_id: str) -> dict:
+    """查询异步任务状态。"""
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.get(f"{DEFAULT_BASE_URL}/tasks/{task_id}")
+        resp.raise_for_status()
+        return resp.json()
+
+
+async def get_task_result(task_id: str) -> bytes:
+    """获取异步任务结果。"""
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.get(f"{DEFAULT_BASE_URL}/tasks/{task_id}/result")
+        resp.raise_for_status()
+        return resp.content
+
+
+async def convert_async(
+    file_path: str | Path,
+    poll_interval: float = DEFAULT_POLL_INTERVAL,
+    max_wait: float = DEFAULT_MAX_WAIT,
+) -> str:
+    """
+    异步模式：提交任务，轮询等待完成，返回最终结果。
+
+    Args:
+        file_path: 输入文件路径
+        poll_interval: 轮询间隔（秒）
+        max_wait: 最大等待时间（秒）
+    """
+    task_id = await submit_task(file_path)
+    elapsed = 0.0
+
+    # 等待任务完成
+    while elapsed < max_wait:
+        await asyncio.sleep(poll_interval)
+        elapsed += poll_interval
+
+        status = await get_task_status(task_id)
+        state = status.get("status")
+
+        if state == "completed":
+            content = await get_task_result(task_id)
+            zip_path = save_zip_file(file_path, content)
+            return zip_path
+        if state == "failed":
+            raise RuntimeError(
+                f"转换任务失败 task_id={task_id}: {status.get('error', 'unknown error')}"
+            )
+
+        # state 可能为 "pending"、"processing"、"queued" 等
+        queued = status.get("queued_ahead", 0)
+        if queued > 0:
+            print(f"  任务排队中，前方还有 {queued} 个任务...", file=sys.stderr)
+
+    raise TimeoutError(
+        f"转换任务超时 task_id={task_id}，已等待 {max_wait}s"
+    )
+
+
+async def convert_to_markdown(
+    file_path: str | Path,
+    mode: str = "sync",
+    poll_interval: float = DEFAULT_POLL_INTERVAL,
+    max_wait: float = DEFAULT_MAX_WAIT,
+) -> str:
+    """
+    将文档转换为 Markdown 文本。
+
+    Args:
+        file_path: 输入文件路径
+        mode: "sync" 同步模式 或 "async" 异步模式
+        poll_interval: 异步模式轮询间隔
+        max_wait: 异步模式最大等待时间
+
+    Returns:
+        转换后的 zip 文件路径
+    """
+    file_path = Path(file_path)
+
+    print(f"正在转换文档: {file_path.name}", file=sys.stderr)
+
+    if mode == "sync":
+        zip_path = await convert_sync(file_path)
+        return zip_path
+    elif mode == "async":
+        zip_path = await convert_async(file_path, poll_interval, max_wait)
+        return zip_path
+    else:
+        raise ValueError(f"不支持的模式: {mode}，可选 'sync' 或 'async'")
+
+
+def convert_file(
+    file_path: str | Path,
+    mode: str = "sync",
+    poll_interval: float = DEFAULT_POLL_INTERVAL,
+    max_wait: float = DEFAULT_MAX_WAIT,
+) -> str:
+    """
+    同步入口：将文件转换为 Markdown，保存到原文件目录下。
+
+    Args:
+        file_path: 输入文件路径
+        mode: 转换模式
+        poll_interval: 轮循间隔
+        max_wait: 最大等待时间
+    """
+    zip_path = asyncio.run(
+        convert_to_markdown(file_path, mode, poll_interval, max_wait)
+    )
+    if zip_path and os.path.exists(zip_path):
+        print(f"zip file path: {zip_path}")
+
+        return zip_path
+
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(
+        description="使用 mineru 服务将文档转换为 Markdown，输出在源文档所在目录下"
+    )
+    parser.add_argument(
+        "file", type=str, help="输入文件路径（支持 PDF/DOCX/PPTX/XLSX/图片）"
+    )
+    parser.add_argument(
+        "--mode",
+        type=str,
+        default="async",
+        choices=["sync", "async"],
+        help="转换模式: sync 同步 / async 异步（默认: sync）",
+    )
+    parser.add_argument(
+        "--poll-interval",
+        type=float,
+        default=DEFAULT_POLL_INTERVAL,
+        help=f"异步模式轮询间隔秒数（默认: {DEFAULT_POLL_INTERVAL}）",
+    )
+    parser.add_argument(
+        "--max-wait",
+        type=float,
+        default=DEFAULT_MAX_WAIT,
+        help=f"异步模式最大等待秒数（默认: {DEFAULT_MAX_WAIT}）",
+    )
+    parser.add_argument(
+        "--health",
+        action="store_true",
+        help="仅检查服务健康状态后退出",
+    )
+
+    args = parser.parse_args()
+
+    if args.health:
+        health_result = asyncio.run(health_check())
+        print(health_result)
+        sys.exit(0)
+
+    markdown = convert_file(
+        file_path=args.file,
+        mode=args.mode,
+        poll_interval=args.poll_interval,
+        max_wait=args.max_wait,
+    )
+
+"""
+curl -X POST http://10.159.154.2:8005/file_parse \
+  -F "files=@/Users/zengzhihua/Documents/code/testing-wiki/huya-pc-web/web顶部栏tab异化图标支持配置_origin.docx" \
+  -F "return_md=true" \
+  -F "response_format_zip=true" \
+  -F "return_original_file=true"
+"""
