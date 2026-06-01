@@ -43,7 +43,7 @@ description: 分析 prd/{需求目录} 下的 PRD 文档，输出结构化需求
 当 PRD 中包含图片，且图片承载了页面布局、交互状态、流程流转、字段说明等关键信息时，先运行图片解析脚本，再继续正文分析。
 
 脚本路径：
-- `~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/prd_image_parser.py`
+- `.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/prd_image_parser.py`
 
 适用场景：
 - PRD 中有 UI 原型图、流程图、架构图、页面截图
@@ -53,14 +53,14 @@ description: 分析 prd/{需求目录} 下的 PRD 文档，输出结构化需求
 推荐命令：
 
 ```bash
-python3 ~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/prd_image_parser.py \
+python3 .claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/prd_image_parser.py \
   --prd-file prd/{需求目录}/{需求目录}.md
 ```
 
 单图深度解析：
 
 ```bash
-python3 ~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/prd_image_parser.py \
+python3 .claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/prd_image_parser.py \
   --prd-file prd/{需求目录}/{需求目录}.md \
   --image-path images/{图片名}.png \
   --detail-level deep
@@ -88,7 +88,7 @@ python3 ~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts
 当 PRD 正文中引用了 `https://doc.weixin.qq.com/` 域名下的腾讯企业微信在线文档链接，说明关键信息在在线文档上，需要将这些在线文档下载到本地再纳入需求分析。
 
 脚本路径：
-- `~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/wechat_doc_downloader.py`
+- `.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/wechat_doc_downloader.py`
 
 适用场景：
 - PRD 正文中出现了 `https://doc.weixin.qq.com/sheet/...` 或 `https://doc.weixin.qq.com/doc/...` 等在线文档链接
@@ -98,7 +98,7 @@ python3 ~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts
 推荐命令：
 
 ```bash
-python3 ~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/wechat_doc_downloader.py \
+python3 .claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/wechat_doc_downloader.py \
   "https://doc.weixin.qq.com/sheet/e3_AbYA7wb9AAYCNoSNuQCISQ0aTj0ej" \
   --output-dir prd/{需求目录}
 ```
@@ -117,7 +117,7 @@ python3 ~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts
 当需求目录下的 PRD 文档为非 Markdown 格式（如 `.docx`、`.xlsx`、`.pptx`、`.pdf`等）时，必须先使用转换脚本将其转为 Markdown，再读取转换后的 `.md` 文件进行分析。
 
 脚本路径：
-- `~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/doc_convert_to_markdown.py`
+- `.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/doc_convert_to_markdown.py`
 
 适用场景：
 - PRD 主文档为 `.docx`、`.pdf`、`.pptx`、`.xlsx` 或图片格式
@@ -127,7 +127,7 @@ python3 ~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts
 推荐命令：
 
 ```bash
-python3 ~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/doc_convert_to_markdown.py \
+python3 .claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/doc_convert_to_markdown.py \
   prd/{需求目录}/{需求文档}.docx \
 ```
 
@@ -160,7 +160,7 @@ python3 ~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts
 若 PRD 文件不是 `.md` 格式，先执行文档格式转换脚本：
 
 ```bash
-python3 ~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/doc_convert_to_markdown.py \
+python3 .claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/doc_convert_to_markdown.py \
   prd/{feature-dir}/{prd-filename} \
   --mode async
 ```
@@ -181,12 +181,12 @@ python3 ~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts
 - 每段提炼中间结论，最后统一合并
 
 如果存在图片引用：
-- 先执行 `~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/prd_image_parser.py`
+- 先执行 `.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/prd_image_parser.py`
 - 优先读取 `prd/{feature-dir}/output/{feature-name}-image-analysis.md`
 - 将图片解析结果与对应章节正文交叉校验，提取页面结构、组件状态、流程分支、限制条件
 
 如果 PRD 正文中包含 `https://doc.weixin.qq.com/` 链接：
-- 先执行 `~/.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/wechat_doc_downloader.py` 将所有在线文档下载到 `prd/{feature-dir}/` 目录
+- 先执行 `.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/wechat_doc_downloader.py` 将所有在线文档下载到 `prd/{feature-dir}/` 目录
 - 下载后优先调用doc_convert_to_markdown.py转为markdown格式
 - 将转后markdown内容作为 PRD 正文的补充材料一并分析
 

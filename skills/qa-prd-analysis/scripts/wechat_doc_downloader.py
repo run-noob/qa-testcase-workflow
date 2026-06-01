@@ -216,33 +216,33 @@ class WechatDocDownloader:
 
 # 使用示例
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(
-        description="下载腾讯文档（wechat doc），支持 sheet/excel、doc/docx、pdf 格式"
-    )
-    parser.add_argument(
-        "doc_url",
-        help="腾讯企业微信在线文档 URL，以 https://doc.weixin.qq.com/ 开头",
-    )
-    parser.add_argument(
-        "--output-dir", "-o",
-        default=os.path.join(os.path.expanduser("~"), "Downloads"),
-        help="下载文件保存目录（默认: ~/Downloads)",
-    )
-    args = parser.parse_args()
-
+    # parser = argparse.ArgumentParser(
+    #     description="下载腾讯文档（wechat doc），支持 sheet/excel、doc/docx、pdf 格式"
+    # )
+    # parser.add_argument(
+    #     "doc_url",
+    #     help="腾讯企业微信在线文档 URL，以 https://doc.weixin.qq.com/ 开头",
+    # )
+    # parser.add_argument(
+    #     "--output-dir", "-o",
+    #     default=os.path.join(os.path.expanduser("~"), "Downloads"),
+    #     help="下载文件保存目录（默认: ~/Downloads)",
+    # )
+    # args = parser.parse_args()
+    #
     downloader = WechatDocDownloader()
-    download_path = downloader.download(args.doc_url, output_dir=args.output_dir)
-    if download_path:
-        print(f"download {args.doc_url} successfull, output path: {download_path}")
-    else:
-        exit(1)
+    # download_path = downloader.download(args.doc_url, output_dir=args.output_dir)
+    # if download_path:
+    #     print(f"download {args.doc_url} successfull, output path: {download_path}")
+    # else:
+    #     exit(1)
     # 下载 Excel
     # excel_link = "https://doc.weixin.qq.com/sheet/e3_AbYA7wb9AAYCNoSNuQCISQ0aTj0ej"
     # # print(downloader.download(excel_link, "./", format='excel'))
     #
     # # 下载 Docx
-    # doc_link = "https://doc.weixin.qq.com/doc/w3_AHUAjwaCABYCN5zUppFubTbizspHN?scode=AFIANgeJAA01s2ho0fAHUAjwaCABY"
-    # print(downloader.download(doc_link, format='docx'))
+    doc_link = "https://doc.weixin.qq.com/doc/w3_AHUAjwaCABYCN5zUppFubTbizspHN?scode=AFIANgeJAA01s2ho0fAHUAjwaCABY"
+    print(downloader.download(doc_link, format='docx'))
     #
     # # docx文档导出为 PDF
     # doc_link = "https://doc.weixin.qq.com/doc/w3_AHUAjwaCABYCN5zUppFubTbizspHN?scode=AFIANgeJAA01s2ho0fAHUAjwaCABY"
