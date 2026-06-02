@@ -46,7 +46,11 @@ class WechatDocDownloader:
 
     def _load_cookies(self):
         """获取并校验cookies"""
-        self.cookie = self._get_cookie_from_server()
+        print(f"当前脚本依赖企业微信文档域名下的cookie信息")
+        cookies = self._get_cookie_from_server()
+        if not cookies:
+            cookies = self._get_cookie_from_local()
+        self.cookie = cookies
         if not self.cookie or not self._check_cookie():
             raise Exception("Failed to get auth info")
 
@@ -54,16 +58,21 @@ class WechatDocDownloader:
     def _get_cookie_from_local():
         # 从本地读取
         cookie_path = os.path.join(os.path.expanduser("~"), ".qa-testcase-workflow", ".wechat_doc_cookies")
+        print(f"尝试获取本地目录存储的cookie，cookie path: {cookie_path}")
         if os.path.exists(cookie_path):
             with open(cookie_path, 'r') as f:
                 cookie_str = f.read().strip()
             return cookie_str
+        else:
+            print(f"请用浏览器打开企业微信文档url，登录获取cookie然后保存到{cookie_path},cookie格式为分号分隔的字符串")
+            exit(1)
     
     @staticmethod
     def _get_cookie_from_server():
         try:
+            print("尝试从服务端获取微信文档的cookie信息")
             url = "http://perf-storage.huya.info/api/wx_doc/cookie/query"
-            resp = requests.get(url)
+            resp = requests.get(url, timeout=5)
             if resp.status_code == 200:
                 res = resp.json()
                 if res.get("code") == 200:

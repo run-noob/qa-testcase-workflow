@@ -15,17 +15,17 @@ description: 基于 PRD 分析报告和变更影响分析结果，生成流程�
 ## 输入参数
 - `$ARGUMENTS` 可选。
 - 可传需求名、目标模块名或分析文件线索。
-- 未传参数时，默认先确认需求目录，再定位 `prd/{需求目录}/output/` 下当前需求的分析文件。
+- 未传参数时，默认先确认需求目录，再定位 `prd/{feature-dir}/output/` 下当前需求的分析文件。
 
 ## 前置条件
 优先检查：
-1. 存在 `prd/{需求目录}/output/*-analysis.md`
+1. 存在 `prd/{feature-dir}/output/*-analysis.md`
 
 ## 强制规则
-2. 生成的测试用例统一写入 `prd/{需求目录}/output/test-cases/`。
+2. 生成的测试用例统一写入 `prd/{feature-dir}/output/test-cases/`。
 3. 永远不要直接修改 `test-cases/` 全量用例库。
 4. 用例文件名、目录名使用中文。
-5. 用例编号必须关联到 `prd/{需求目录}/output/*-analysis.md` 里的组件编号。
+5. 用例编号必须关联到 `prd/{feature-dir}/output/*-analysis.md` 里的组件编号。
 6. **流程化设计规则**：禁止生成破碎的单步验证用例。用例设计必须以“用户任务”或“业务流程”为核心。一个典型的功能性测试用例应覆盖一个完整的业务闭环或逻辑闭环，**测试步骤通常不少于 3 步**，应包含“环境准备 -> 操作序列 -> 多维度校验 -> 清理（如有）”的完整链路。
 7. **严禁**随意编造测试数据，如URL、测试账号等
 
@@ -34,7 +34,8 @@ description: 基于 PRD 分析报告和变更影响分析结果，生成流程�
 ### Step 1：加载输入材料
 读取：
 - `AGENTS.md` （如有）
-- `prd/{需求目录}/output/*-analysis.md`
+- `prd/{feature-dir}/output/*-analysis.md`
+- `prd/{feature-dir}/output/*-clarifications.md`, 若澄清问题清单内还有未确认的问题，优先询问用户是否忽略未澄清的问题
 - `skills/qa-testcase-generation/case-template.md`
 - `skills/qa-testcase-generation/case-standards.md`
 - `skills/qa-testcase-generation/priority-rules.md`
@@ -45,8 +46,8 @@ description: 基于 PRD 分析报告和变更影响分析结果，生成流程�
 
 #### 2.1 用例分组
 按“系统模块 → 页面区块/组件”组织输出，例如：
-- `prd/{需求目录}/output/test-cases/{SystemModule}-{Component}.md`
-- `prd/{需求目录}/output/test-cases/test-case-summary.md`
+- `prd/{feature-dir}/output/test-cases/{SystemModule}-{Component}.md`
+- `prd/{feature-dir}/output/test-cases/test-case-summary.md`
 
 #### 2.2 设计方法选择
 在生成用例前，必须为每个功能点明确测试设计方法，并输出设计方法清单。要求：
@@ -83,7 +84,7 @@ description: 基于 PRD 分析报告和变更影响分析结果，生成流程�
 
 ### Step 4：生成测试用例汇总文件
 
-内部先完成组件的功能点覆盖自检，并将结果直接写入 `prd/{需求目录}/output/test-cases/test-case-summary.md`。
+内部先完成组件的功能点覆盖自检，并将结果直接写入 `prd/{feature-dir}/output/test-cases/test-case-summary.md`。
 汇总文件至少包含：
   - 每个模块组件的用例数量及总数
   - P0/P1/P2/P3 分布
@@ -107,7 +108,7 @@ description: 基于 PRD 分析报告和变更影响分析结果，生成流程�
 当预计生成用例超过 100 条时：
 - 按其中复杂的组件拆分为独立文件
 - 单文件尽量不超过 50 条用例
-- 分批生成，每批完成后更新汇总
+- 按功能模块分批生成，每批完成后更新汇总，模块用例全部完成后，清空该模块的用例上下文，继续下一个模块
 
 ## 失败处理
 如遇以下情况，中止并说明：

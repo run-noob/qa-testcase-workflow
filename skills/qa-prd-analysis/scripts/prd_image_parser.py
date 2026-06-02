@@ -332,17 +332,25 @@ def image_analysis_key(
 #         return None
 
 
+def _get_api_key_and_url():
+    openai_base_url = os.environ.get("OPENAI_BASE_URL", "https://copilot.huya.info/api/openai/v1")
+    openai_api_key = os.environ.get("OPENAI_API_KEY", "")
+    if openai_api_key:
+        return openai_base_url, openai_api_key
+    anthropic_base_url = os.environ.get("ANTHROPIC_BASE_URL", "https://copilot.huya.info/api/anthropic")
+    anthropic_api_key = os.environ.get("ANTHROPIC_AUTH_TOKEN")
+    if anthropic_api_key:
+        return anthropic_base_url, anthropic_api_key
+
 def _openai_responses_call(
     model: str,
     messages: List[Dict[str, Any]],
     timeout: int,
 ) -> Optional[str]:
-    api_key = os.environ.get("OPENAI_API_KEY", "")
-    # 注意这里默认是 chat/completions
-    api_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1/")
+    base_url, api_key = _get_api_key_and_url()
 
     if not api_key:
-        raise RuntimeError("Missing OPENAI_API_KEY.")
+        raise RuntimeError("图片分析能力依赖OPENAI_API_KEY和OPENAI_BASE_URL，当前环境没有配置，请引导用户配置该环境变量")
 
     payload = {
         "model": model,
@@ -350,7 +358,7 @@ def _openai_responses_call(
         "temperature": 0.2
     }
     data = json.dumps(payload).encode("utf-8")
-    chat_completion_url = api_url+"/chat/completions"
+    chat_completion_url = base_url+"/chat/completions"
     req = urllib.request.Request(
         url=chat_completion_url,
         data=data,
