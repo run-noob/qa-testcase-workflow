@@ -238,6 +238,8 @@ class WechatDocDownloader:
         file_url, file_name = resp.get('file_url'), resp.get('file_name')
         file_name = file_name.replace(" ", "")
         file_path = os.path.join(output_dir, file_name)
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
         self._download_file(file_url, file_path)
         file_path = os.path.abspath(file_path)
         if os.path.exists(file_path):

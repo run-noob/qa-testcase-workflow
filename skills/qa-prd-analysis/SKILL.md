@@ -66,7 +66,7 @@ description: 分析 prd/{feature-dir} 下的 PRD 文档，输出结构化需求�
 推荐命令：
 
 ```bash
-python3 .claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/wechat_doc_downloader.py \
+python .claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/wechat_doc_downloader.py \
   "https://doc.weixin.qq.com/sheet/e3_AbYA7wb9AAYCNoSNuQCISQ0aTj0ej" \
   --output-dir prd/{feature-dir}
 ```
@@ -95,7 +95,7 @@ python3 .claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/w
 推荐命令：
 
 ```bash
-python3 .claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/doc_convert_to_markdown.py \
+python .claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/doc_convert_to_markdown.py \
   prd/{feature-dir}/{feature-name}.docx \
 ```
 
@@ -141,7 +141,7 @@ python3 .claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/d
 推荐命令：
 
 ```bash
-python3 .claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/prd_image_parser.py \
+python .claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/prd_image_parser.py \
   --prd-file prd/{feature-dir}/{feature-name}.md
 ```
 
