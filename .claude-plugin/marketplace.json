@@ -9,7 +9,7 @@
     {
       "name": "qa-testcase-workflow",
       "description": "Core qa workflow skills library for Claude Code",
-      "version": "0.3.5",
+      "version": "0.3.6",
       "source": "./",
       "author": {
         "name": "zengzhihua",

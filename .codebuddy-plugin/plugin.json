@@ -1,6 +1,6 @@
 {
   "name": "qa-testcase-workflow",
-  "version": "0.3.2",
+  "version": "0.3.6",
   "displayName": "QA 测试用例工作流",
   "description": "测试工程师测试用例管理的完整工作流自动化，支持 PRD 分析、变更分析、用例生成、评审和归档",
   "author": {
@@ -33,10 +33,6 @@
     "工作流"
   ],
   "features": [
-    "一键执行完整的5步测试用例管理流程",
-    "支持部分执行（--steps）、断点恢复（--resume）",
-    "智能目录结构验证和自动创建",
-    "实时进度可视化和状态追踪",
     "自动PRD分析和功能点提取",
     "存量用例变更影响分析",
     "基于模板的结构化用例生成",
@@ -47,12 +43,6 @@
     "zh-CN",
     "en"
   ],
-  "documentation": {
-    "readme": "README.md",
-    "guide": "CLAUDE.md",
-    "changelog": "CHANGELOG.md",
-    "license": "MIT"
-  },
   "assets": {
     "icon": ".codebuddy-plugin/icon.svg"
   },

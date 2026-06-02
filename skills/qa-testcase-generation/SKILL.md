@@ -80,9 +80,29 @@ description: 基于 PRD 分析报告和变更影响分析结果，生成流程�
    - 边界用例必须覆盖边界值及边界附近的值（如最小值-1、最大值+1）
 
 ### Step 3：生成测试用例文件
- 参考`case-template.md`，对每个模块/组件生成结构化用例，文件名推荐格式：{模块名}-{组件名}-用例.md
+ 参考`case-template.md`，对每个模块/组件生成结构化用例，文件名推荐格式：{模块名}-{组件名}.md
 
-### Step 4：生成测试用例汇总文件
+### Step 4：转换为 Excel 文件
+	将生成的 Markdown 用例文件转换为 Excel 格式，便于导入测试管理平台或分享给非技术人员。
+
+	#### 4.1 转换脚本
+	使用 `skills/qa-testcase-generation/scripts/markdown_case_convert_to_excel.py` 执行转换。
+
+	#### 4.2 使用方式
+	```bash
+	# 转换指定目录下的所有 .md 用例文件
+	python skills/qa-testcase-generation/scripts/markdown_case_convert_to_excel.py prd/{feature-dir}/output/test-cases/
+
+	# 指定输出路径
+	python skills/qa-testcase-generation/scripts/markdown_case_convert_to_excel.py prd/{feature-dir}/output/test-cases/ -o prd/{feature-dir}/output/test-cases.xlsx
+	```
+
+	#### 4.3 输出说明
+	- 输入：`prd/{feature-dir}/output/test-cases/` 目录下所有 `.md` 用例文件
+	- 输出：Excel 文件（默认 `testcases.xlsx`），包含以下列：ID、模块、优先级、类型、标题、前置条件、步骤、预期、测试数据、备注
+	- 依赖 `openpyxl`，若未安装请先执行 `python -m pip install openpyxl`
+
+### Step 5：生成测试用例汇总文件
 
 内部先完成组件的功能点覆盖自检，并将结果直接写入 `prd/{feature-dir}/output/test-cases/test-case-summary.md`。
 汇总文件至少包含：
