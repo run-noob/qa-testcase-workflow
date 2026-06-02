@@ -20,12 +20,12 @@ import os
 import re
 import sys
 import time
-import openai
+import urllib.request
+import urllib.error
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-from urllib import error, request
 
 
 SUMMARY_PROMPT_VERSION = "v1"
@@ -202,7 +202,7 @@ def download_image(url: str, prd_dir: Path) -> Optional[Path]:
         return local_path
     ensure_dir(download_dir)
     try:
-        request.urlretrieve(url, str(local_path))
+        urllib.request.urlretrieve(url, str(local_path))
         return local_path
     except Exception as e:
         print(f"[WARNING] Failed to download {url}: {e}")
@@ -305,27 +305,75 @@ def image_analysis_key(
     return sha256_text(payload)
 
 
+# def _openai_responses_call_openai(
+#     model: str,
+#     messages: List[Dict[str, Any]],
+#     timeout: int,
+# ) -> str:
+#     api_key = os.environ.get("OPENAI_API_KEY", "")
+#     api_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1/completions")
+#     if not api_key:
+#         raise RuntimeError("Missing OPENAI_API_KEY.")
+#     client = openai.OpenAI(api_key=api_key, base_url=api_url)
+#
+#     try:
+#         response = client.chat.completions.create(
+#             model=model,
+#             messages=messages,
+#             temperature=0.2
+#         )
+#         # 提取回复内容
+#         return response.choices[0].message.content
+#     except openai.APIError as e:
+#         print(f"OpenAI API 错误: {e}")
+#         return None
+#     except Exception as e:
+#         print(f"发生未知错误: {e}")
+#         return None
+
+
 def _openai_responses_call(
     model: str,
     messages: List[Dict[str, Any]],
     timeout: int,
-) -> str:
+) -> Optional[str]:
     api_key = os.environ.get("OPENAI_API_KEY", "")
-    api_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1/completions")
+    # 注意这里默认是 chat/completions
+    api_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1/")
+
     if not api_key:
         raise RuntimeError("Missing OPENAI_API_KEY.")
-    client = openai.OpenAI(api_key=api_key, base_url=api_url)
+
+    payload = {
+        "model": model,
+        "messages": messages,
+        "temperature": 0.2
+    }
+    data = json.dumps(payload).encode("utf-8")
+    chat_completion_url = api_url+"/chat/completions"
+    req = urllib.request.Request(
+        url=chat_completion_url,
+        data=data,
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+    )
 
     try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=0.2
-        )
-        # 提取回复内容
-        return response.choices[0].message.content
-    except openai.APIError as e:
-        print(f"OpenAI API 错误: {e}")
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            body = resp.read().decode("utf-8")
+            result = json.loads(body)
+            return result["choices"][0]["message"]["content"]
+    except urllib.error.HTTPError as e:
+        # HTTP状态码错误（4xx/5xx）
+        err_text = e.read().decode("utf-8", errors="ignore")
+        print(f"OpenAI HTTP 错误: {e.code}, {err_text}")
+        return None
+    except urllib.error.URLError as e:
+        # 网络层错误（DNS、连接失败等）
+        print(f"网络错误: {e}")
         return None
     except Exception as e:
         print(f"发生未知错误: {e}")
@@ -626,6 +674,20 @@ def main() -> int:
                     retry=args.retry,
                     on_error=args.on_error,
                 )
+                if analysis_text:
+                    write_json(
+                        img_cache_path,
+                        {
+                            "key": i_key,
+                            "image_prompt_version": IMAGE_PROMPT_VERSION,
+                            "model": args.model,
+                            "detail_level": args.detail_level,
+                            "created_at": now_iso(),
+                            "image_path": str(ref.resolved_path),
+                            "raw_path": str(ref.raw_path),
+                            "analysis_text": analysis_text,
+                        },
+                    )
             except Exception as e:  # pylint: disable=broad-except
                 msg = f"{ref.image_id} 解析失败: {e}"
                 errors.append(msg)
@@ -634,19 +696,6 @@ def main() -> int:
                     print(f"[ERROR] {msg}", file=sys.stderr)
                     return 1
                 continue
-            write_json(
-                img_cache_path,
-                {
-                    "key": i_key,
-                    "image_prompt_version": IMAGE_PROMPT_VERSION,
-                    "model": args.model,
-                    "detail_level": args.detail_level,
-                    "created_at": now_iso(),
-                    "image_path": str(ref.resolved_path),
-                    "raw_path": str(ref.raw_path),
-                    "analysis_text": analysis_text,
-                },
-            )
 
         out_item: Dict[str, Any] = {
             "image_id": ref.image_id,
@@ -715,7 +764,7 @@ if __name__ == "__main__":
     # sys.argv[1:] = [
     #     "--prd-file",
     #     # "/Users/zengzhihua/Documents/code/testing-wiki/huya-pc-web/prd/web-nav/web顶部栏tab异化图标支持配置.md",
-    #     "/Users/zengzhihua/Documents/code/testing-wiki/huya-pc-web/prd/buffvip/日麻AI助手购买会员.md",
+    #     "/Users/zengzhihua/Documents/code/testing-wiki/huya-pc-web/prd/buffvip/【日麻AI助手】购买会员.md",
     #     # "--image-path",
     #     # "images/f2dda1df57298c02c4aafb599c56200d2ca201c12256e90d076f9393f02e5881.png"
     # ]

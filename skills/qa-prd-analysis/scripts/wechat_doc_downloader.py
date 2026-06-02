@@ -18,12 +18,10 @@ class WechatDocDownloader:
 
     def __init__(self):
         # 读取 cookie 文件
-        cookie_path = os.path.join(os.path.expanduser("~"), ".qa-testcase-workflow", ".wechat_doc_cookies")
-        with open(cookie_path, 'r') as f:
-            self.cookie = f.read().strip()
         self.base_url = "https://doc.weixin.qq.com"
         self.referer_url = self.base_url
         self.sid = ""
+        self.cookie = ""
 
     def _get_headers(self, url=""):
         accept = "*/*"
@@ -46,6 +44,43 @@ class WechatDocDownloader:
         }
         return headers
 
+    def _load_cookies(self):
+        """获取并校验cookies"""
+        self.cookie = self._get_cookie_from_server()
+        if not self.cookie or not self._check_cookie():
+            raise Exception("Failed to get auth info")
+
+    @staticmethod
+    def _get_cookie_from_local():
+        # 从本地读取
+        cookie_path = os.path.join(os.path.expanduser("~"), ".qa-testcase-workflow", ".wechat_doc_cookies")
+        if os.path.exists(cookie_path):
+            with open(cookie_path, 'r') as f:
+                cookie_str = f.read().strip()
+            return cookie_str
+    
+    @staticmethod
+    def _get_cookie_from_server():
+        try:
+            url = "http://perf-storage.huya.info/api/wx_doc/cookie/query"
+            resp = requests.get(url)
+            if resp.status_code == 200:
+                res = resp.json()
+                if res.get("code") == 200:
+                    cookie_data = res.get("data")
+                    cookie_str = "; ".join([f"{k}={v}" for k, v in cookie_data.items() if v])
+                    return cookie_str
+        except:
+            print("failed to get cookie from server")
+
+    def _check_cookie(self):
+        try:
+            self._get_banner_info()
+            return True
+        except Exception as e:
+            print(f"cookie expired!")
+        return False
+        
     def _get_auth_sid(self, doc_id):
         """获取 sid，用于后续导出请求"""
         if self.sid:
@@ -147,10 +182,10 @@ class WechatDocDownloader:
     def print_download_failed_msg(self):
         print(f"下载文档失败，可能原因：依赖的cookie失效或需要验证码等。URL: {self.referer_url}")
         
-    def download(self, url, output_dir="./", *, format='auto'):
+    def download(self, url, output_dir="./", *, output_format='auto'):
         """
         根据文档链接和指定格式下载文件
-        format: 'excel', 'docx', 'pdf', 'auto'(根据链接自动选择)
+        output_format: 'excel', 'docx', 'pdf', 'auto'(根据链接自动选择)
         """
         # 解析文档 ID 和类型
         if '/sheet/' in url:
@@ -167,33 +202,34 @@ class WechatDocDownloader:
             raise ValueError("Unsupported document URL")
 
         # 自动模式：sheet -> excel, doc -> docx（默认）
-        if format == 'auto':
+        if output_format == 'auto':
             if doc_type == 'sheet':
-                format = 'excel'
+                output_format = 'excel'
             elif doc_type == 'doc':
-                format = 'docx'
+                output_format = 'docx'
             elif doc_type == 'pdf':
-                format = 'pdf'
+                output_format = 'pdf'
 
         # 校验格式兼容性
-        if doc_type == 'sheet' and format not in ('excel', 'auto'):
+        if doc_type == 'sheet' and output_format not in ('excel', 'auto'):
             raise ValueError("Sheet document can only be downloaded as Excel")
-        if doc_type == 'doc' and format not in ('pdf', 'docx', 'auto'):
+        if doc_type == 'doc' and output_format not in ('pdf', 'docx', 'auto'):
             raise ValueError("Doc document can be downloaded as PDF or Docx")
-        if doc_type == 'pdf' and format not in ('pdf', 'auto'):
+        if doc_type == 'pdf' and output_format not in ('pdf', 'auto'):
             raise ValueError("PDF document can only be downloaded as PDF")
         referer_url = f"{self.base_url}/{doc_type}/{doc_id}"
         self.referer_url = referer_url  # 保存 referer_url 以供后续请求使用
+        self._load_cookies()
         # 校验 Cookie 和验证码状态
-        self._get_banner_info()
+        # self._get_banner_info()
         progress_url = f"{self.base_url}/v1/export/query_progress"
         operation_id = None
-        if format in ('excel', 'docx'):
+        if output_format in ('excel', 'docx'):
             operation_id = self._export_office(doc_id)
-        elif format == 'pdf':
+        elif output_format == 'pdf':
             operation_id = self._export_pdf(doc_id)
         else:
-            raise ValueError("Unsupported format")
+            raise ValueError("Unsupported output_format")
         if not operation_id:
             logger.error("Failed to export")
             self.print_download_failed_msg()
@@ -216,33 +252,33 @@ class WechatDocDownloader:
 
 # 使用示例
 if __name__ == '__main__':
-    # parser = argparse.ArgumentParser(
-    #     description="下载腾讯文档（wechat doc），支持 sheet/excel、doc/docx、pdf 格式"
-    # )
-    # parser.add_argument(
-    #     "doc_url",
-    #     help="腾讯企业微信在线文档 URL，以 https://doc.weixin.qq.com/ 开头",
-    # )
-    # parser.add_argument(
-    #     "--output-dir", "-o",
-    #     default=os.path.join(os.path.expanduser("~"), "Downloads"),
-    #     help="下载文件保存目录（默认: ~/Downloads)",
-    # )
-    # args = parser.parse_args()
-    #
+    parser = argparse.ArgumentParser(
+        description="下载腾讯文档（wechat doc），支持 sheet/excel、doc/docx、pdf 格式"
+    )
+    parser.add_argument(
+        "doc_url",
+        help="腾讯企业微信在线文档 URL，以 https://doc.weixin.qq.com/ 开头",
+    )
+    parser.add_argument(
+        "--output-dir", "-o",
+        default=os.path.join(os.path.expanduser("~"), "Downloads"),
+        help="下载文件保存目录（默认: ~/Downloads)",
+    )
+    args = parser.parse_args()
     downloader = WechatDocDownloader()
-    # download_path = downloader.download(args.doc_url, output_dir=args.output_dir)
+    download_path = downloader.download(args.doc_url, output_dir=args.output_dir)
     # if download_path:
     #     print(f"download {args.doc_url} successfull, output path: {download_path}")
     # else:
     #     exit(1)
     # 下载 Excel
     # excel_link = "https://doc.weixin.qq.com/sheet/e3_AbYA7wb9AAYCNoSNuQCISQ0aTj0ej"
-    # # print(downloader.download(excel_link, "./", format='excel'))
+    # # print(downloader.download(excel_link, "./", output_format='excel'))
     #
     # # 下载 Docx
-    doc_link = "https://doc.weixin.qq.com/doc/w3_AHUAjwaCABYCN5zUppFubTbizspHN?scode=AFIANgeJAA01s2ho0fAHUAjwaCABY"
-    print(downloader.download(doc_link, format='docx'))
+    # doc_link = "https://doc.weixin.qq.com/doc/w3_AHUAjwaCABYCN5zUppFubTbizspHN?scode=AFIANgeJAA01s2ho0fAHUAjwaCABY"
+    # doc_link = "https://doc.weixin.qq.com/doc/w3_AIgAMQa8AJECNUzA301AtSZOcsgfL?scode=AMgA7wdCAAYQYCUjy1AIgAMQa8AJE&from=weixin"
+    # print(downloader.download(doc_link, output_format='docx'))
     #
     # # docx文档导出为 PDF
     # doc_link = "https://doc.weixin.qq.com/doc/w3_AHUAjwaCABYCN5zUppFubTbizspHN?scode=AFIANgeJAA01s2ho0fAHUAjwaCABY"
