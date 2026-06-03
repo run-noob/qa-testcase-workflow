@@ -7,10 +7,14 @@ try:
     from openpyxl.styles import Alignment, Font, PatternFill
 except:
     raise EnvironmentError("当前python环境尚未安装openpyxl，请先执行python -m pip install openpyxl")
-    
 
 
 logger = logging.getLogger()
+
+
+def _replace_br(text):
+    text = text.replace(r'<br>', ' ')
+    return re.sub(r"\n\s*", "\n", text, re.DOTALL)
 
 
 def parse_test_cases_from_markdown(md_text: str, start_index: int = 1) -> dict:
@@ -29,37 +33,37 @@ def parse_test_cases_from_markdown(md_text: str, start_index: int = 1) -> dict:
     if knowledge_match:
         knowledge = knowledge_match.group(1).strip()
 
-    # 提取测试用例
-    # 用 ## [ID] 分割
-    segments = re.split(r'\n(?=#{2,}\s*\[)', md_text)
+    # 类型映射
+    type_mapping = {
+        "功能": "functional",
+        "边界": "boundary",
+        "异常": "error",
+        "安全": "security",
+        "functional": "functional",
+        "boundary": "boundary",
+        "error": "error",
+        "security": "security"
+    }
+
+    # 提取测试用例,可能格式：
+    #    ## [MODULE-001] [P1] [功能] Name
+    #    ## [P1] [功能][MODULE-001]Name
+    #    ## [P1] [功能] MODULE-001Name
+    #    ### ADMIN-PANEL-ID\n**[边界][P2]Name**
+    segments = re.split(r'\n(?=#{2,}\s)', md_text)
+
     for seg in segments:
-        # 匹配 ## [ID]...[ID] Name
-        # 先提取整行标题
-        header_match = re.search(r'##\s*(.*)', seg)
+        # 匹配标题区域：从 ##/### 到 **前置条件** 之前（可能多行）
+        header_match = re.search(r'(#{2,}\s.*?)(?=\n- \*\*前置条件\*\*)', seg, re.DOTALL)
         if not header_match:
             continue
-
-        header_text = header_match.group(1).strip()
-        # 提取所有方括号中的内容
+        header_text = header_match.group(1)
+        # 提取整个标题区域中所有方括号中的内容
         tokens = re.findall(r'\[(.*?)\]', header_text)
-
         tc_priority = None
         tc_type = None
-        id_parts = []
-
         # 优先级正则 P0-P3
         priority_pattern = r'^P[0-3]$'
-        # 类型映射
-        type_mapping = {
-            "功能": "functional",
-            "边界": "boundary",
-            "异常": "error",
-            "安全": "security",
-            "functional": "functional",
-            "boundary": "boundary",
-            "error": "error",
-            "security": "security"
-        }
 
         for token in tokens:
             token_strip = token.strip().lstrip("[").rstrip("]")
@@ -68,21 +72,36 @@ def parse_test_cases_from_markdown(md_text: str, start_index: int = 1) -> dict:
             elif token_strip.lower() in type_mapping:
                 tc_type = type_mapping[token_strip.lower()]
             elif any(k in token_strip for k in type_mapping):
-                # 处理带有“测试”后缀的情况，如“功能测试”
-                matched = False
+                # 处理带有"测试"后缀的情况，如"功能测试"
                 for k, v in type_mapping.items():
                     if k in token_strip:
                         tc_type = v
-                        matched = True
                         break
-                if not matched:
-                    id_parts.append(token_strip)
-            else:
-                id_parts.append(token_strip)
 
-        tc_id = "-".join(id_parts) if id_parts else f"TC_{(start_index + len(test_cases)):0>3}"
-        # 移除所有方括号及其内容后的剩余部分作为 Name
-        tc_name = re.sub(r'\[.*?\]', '', header_text).strip(" #:")
+        def find_id(text):
+            match = re.search(r'[A-Za-z]+(?:-[A-Za-z]+)*-\d+', text)
+            if match:
+                return match.group(0)
+            return None
+
+        tc_id = find_id(header_text)
+        if not tc_id:
+            tc_id = f"TC_{(start_index + len(test_cases)):0>3}"
+
+        # 从整个标题区域提取用例名称：去掉 ##/### 标记、方括号内容、加粗标记
+        name_text = re.sub(r'#{2,}\s*', '', header_text)
+        name_text = re.sub(r'\[.*?\]', '', name_text)
+        name_text = re.sub(r'\*\*', '', name_text).strip()
+        # 按行分割，过滤空行和纯 ID 行（大写+数字+连字符，无中文字符）
+        name_lines = []
+        for line in name_text.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+            if re.match(r'^[A-Z][A-Z0-9_-]*$', line) and not re.search(r'[一-鿿]', line):
+                continue
+            name_lines.append(line)
+        tc_name = ' '.join(name_lines).strip(" #:")
 
         tc = {
             "id": tc_id,
@@ -99,8 +118,8 @@ def parse_test_cases_from_markdown(md_text: str, start_index: int = 1) -> dict:
 
         # 提取各个字段
         def get_field(pattern, text, default=None):
-            m = re.search(pattern, text)
-            return m.group(1).strip() if m else default
+            m = re.search(pattern, text,  re.MULTILINE | re.DOTALL)
+            return _replace_br(m.group(1).strip("*- ")) if m else default
 
         # 如果 body 中有明确定义的字段，则覆盖 header 中的
         body_priority = get_field(r'\*\*优先级\*\*[:：]\s*(.*)', seg)
@@ -119,13 +138,11 @@ def parse_test_cases_from_markdown(md_text: str, start_index: int = 1) -> dict:
                         tc["type"] = v
                         break
 
-        tc["precondition"] = get_field(r'\*\*前置条件\*\*[:：]\s*(.*)', seg, "")
-        tc["test_data"] = get_field(r'\*\*测试数据\*\*[:：]\s*(.*)', seg, "")
-        tc["remark"] = get_field(r'\*\*备注\*\*[:：]\s*(.*)', seg, "")
+        tc["precondition"] = get_field(r'\*\*前置条件\*\*[:：]\s*(.*?)(?=测试步骤)', seg, "")
+        tc["test_data"] = get_field(r'\*\*测试数据\*\*[:：]\s*(.*?)(?=备注)', seg, "")
+        tc["remark"] = get_field(r'\*\*备注\*\*[:：]\s*(.*?)(?=---|#|\Z)', seg, "")
 
         # 提取步骤 (多行)
-        # 匹配 **测试步骤** 之后直到下一个加粗字段或分割线的内容
-        # 修改正则，使其对冒号后的换行更宽容
         steps_match = re.search(r'\*\*测试步骤\*\*[:：]\s*(.*?)(?=\n\*\*|\n---|\n##|$)', seg, re.DOTALL)
         if steps_match:
             steps_content = steps_match.group(1).strip()
@@ -137,41 +154,32 @@ def parse_test_cases_from_markdown(md_text: str, start_index: int = 1) -> dict:
                 expected_list = []
 
                 for line in table_lines:
-                    # 跳过表头和分隔线
-                    # 分隔线特征：只包含 |, -, :, 空白
                     if re.match(r'^[|\s:-]+$', line):
                         continue
-                    # 表头特征：包含“步骤”、“操作”、“预期”等关键词
                     if re.search(r'步骤|step|操作|operation|预期|expected', line, re.I):
-                        # 如果该行同时也包含数字（如步骤1），则不认为是表头，除非数字是在第一列且是表头的一部分
-                        # 简单起见，如果包含 --- 且有 | 则是分隔线（上面已处理）
-                        # 如果包含关键词且是 table 的第一行 or 第二行，认为是表头
                         if line == table_lines[0]:
                             continue
 
-                    # 分割列并清理
                     cols = [c.strip() for c in line.strip('|').split('|')]
                     if len(cols) >= 2:
                         step_num = cols[0]
                         action = cols[1]
                         expected = cols[2] if len(cols) >= 3 else ""
 
-                        # 格式化为 "1. 操作" 形式
                         prefix = f"{step_num}. " if step_num and not step_num.endswith('.') else f"{step_num} "
                         if not step_num: prefix = ""
 
-                        steps_list.append(f"{prefix}{action}")
+                        steps_list.append(f"{action}")
                         if expected:
-                            expected_list.append(f"{prefix}{expected}")
+                            expected_list.append(f"{expected}")
 
-                tc["steps"] = "\n".join(steps_list)
-                tc["expected"] = "\n".join(expected_list)
+                tc["steps"] = _replace_br("\n".join(steps_list))
+                tc["expected"] = _replace_br("\n".join(expected_list))
             else:
-                tc["steps"] = steps_content
-                # 如果不是表格，则尝试提取独立的预期结果
+                tc["steps"] = _replace_br(steps_content)
                 expected_match = re.search(r'\*\*预期结果\*\*[:：]\s*(.*?)(?=\n\*\*|\n---|\n##|$)', seg, re.DOTALL)
                 if expected_match:
-                    tc["expected"] = expected_match.group(1).strip()
+                    tc["expected"] = _replace_br(expected_match.group(1).strip())
             test_cases.append(tc)
         else:
             if len(test_cases) > 0:
@@ -194,7 +202,7 @@ def convert_markdown_cases_to_excel(input_dir: str, output_path: str) -> str:
     if not input_path.is_dir():
         raise ValueError(f"输入路径不是有效的目录: {input_dir}")
 
-    md_files = sorted(input_path.glob("*.md"))
+    md_files = sorted(input_path.glob("*/*.md"))
     if not md_files:
         raise ValueError(f"目录中没有找到 .md 文件: {input_dir}")
 
@@ -222,7 +230,6 @@ def convert_markdown_cases_to_excel(input_dir: str, output_path: str) -> str:
 
     row = 2
     global_index = 1
-    # 记录每个模块对应的行范围，用于合并单元格
     module_ranges: dict[str, list[int]] = {}
 
     for md_file in md_files:
@@ -242,7 +249,6 @@ def convert_markdown_cases_to_excel(input_dir: str, output_path: str) -> str:
 
         for tc in test_cases:
             tc_type = TYPE_LABELS.get(tc.get("type", ""), tc.get("type", ""))
-
             ws.cell(row=row, column=1, value=tc.get("id", ""))
             ws.cell(row=row, column=2, value=module)
             ws.cell(row=row, column=3, value=tc.get("priority", ""))

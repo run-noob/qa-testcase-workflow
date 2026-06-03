@@ -1,6 +1,6 @@
 {
   "name": "qa-testcase-workflow",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "displayName": "QA 测试用例工作流",
   "description": "测试工程师测试用例管理的完整工作流自动化，支持 PRD 分析、变更分析、用例生成、评审和归档",
   "author": {
