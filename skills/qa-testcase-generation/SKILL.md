@@ -53,11 +53,11 @@ description: 基于 PRD 分析报告和变更影响分析结果，生成流程�
 在生成用例前，必须为每个功能点明确测试设计方法，并输出设计方法清单。要求：
 
 2.2.1 **方法选用原则**
-   - 涉及输入范围、数值、长度、时间的 → 必须使用 **等价类 + 边界值**
-   - 涉及状态变化、流程分支的 → 必须使用 **状态转换 / 场景法**
-   - 涉及多条件组合的 → 必须使用 **判定表 / 正交试验**（至少覆盖关键组合）
-   - 涉及异常、权限、逆向操作的 → 必须使用 **错误推测法**
-   - 涉及数据格式、必填校验的 → 使用 **等价类 + 边界值 + 异常分析**
+   - 涉及输入范围、数值、长度、时间的 → 必须使用 `等价类 + 边界值`
+   - 涉及状态变化、流程分支的 → 必须使用 `状态转换 / 场景法`
+   - 涉及多条件组合的 → 必须使用 `判定表 / 正交试验`（至少覆盖关键组合）
+   - 涉及异常、权限、逆向操作的 → 必须使用 `错误推测法`
+   - 涉及数据格式、必填校验的 → 使用 `等价类 + 边界值 + 异常分析`
 
 2.2.2 **输出设计方法清单**（内嵌在思考过程中，或作为临时输出，不写入最终文件）
    对每个功能点，列出：
@@ -83,24 +83,32 @@ description: 基于 PRD 分析报告和变更影响分析结果，生成流程�
  参考`case-template.md`，对每个模块/组件生成结构化用例，文件名推荐格式：{模块名}-{组件名}.md
 
 ### Step 4：转换为 Excel 文件
+
+
+#### 4.1 转换脚本
+使用 `skills/qa-testcase-generation/scripts/markdown_case_convert_to_excel.py` 执行转换。
+首次运行前，请确保执行以下命令安装依赖：
+```bash
+python -m pip install -r scripts/requirements.txt
 	将生成的 Markdown 用例文件转换为 Excel 格式，便于导入测试管理平台或分享给非技术人员。
+```
 
-	#### 4.1 转换脚本
-	使用 `skills/qa-testcase-generation/scripts/markdown_case_convert_to_excel.py` 执行转换。
+#### 4.2 使用方式
+- 所有的辅助脚本都存放在本技能目录的 `scripts/` 下。
+- 在执行任何脚本之前，你必须先获取本 `SKILL.md` 所在的绝对路径，并将其作为基准路径来定位 `scripts/` 目录。
+- **执行示例**：如果本 `SKILL.md` 路径为 `/path/to/my-skill/SKILL.md`，则你应当执行 `/path/to/my-skill/scripts/process.py`。
 
-	#### 4.2 使用方式
-	```bash
-	# 转换指定目录下的所有 .md 用例文件
-	python skills/qa-testcase-generation/scripts/markdown_case_convert_to_excel.py prd/{feature-dir}/output/test-cases/
+```bash
+# 转换指定目录下的所有 .md 用例文件
+python scripts/markdown_case_convert_to_excel.py prd/{feature-dir}/output/test-cases/
 
-	# 指定输出路径
-	python skills/qa-testcase-generation/scripts/markdown_case_convert_to_excel.py prd/{feature-dir}/output/test-cases/ -o prd/{feature-dir}/output/test-cases.xlsx
-	```
+# 指定输出路径
+python scripts/markdown_case_convert_to_excel.py prd/{feature-dir}/output/test-cases/ -o prd/{feature-dir}/output/test-cases.xlsx
+```
 
-	#### 4.3 输出说明
-	- 输入：`prd/{feature-dir}/output/test-cases/` 目录下所有 `.md` 用例文件
-	- 输出：Excel 文件（默认 `testcases.xlsx`），包含以下列：ID、模块、优先级、类型、标题、前置条件、步骤、预期、测试数据、备注
-	- 依赖 `openpyxl`，若未安装请先执行 `python -m pip install openpyxl`
+#### 4.3 输出说明
+- 输入：`prd/{feature-dir}/output/test-cases/` 目录下所有 `.md` 用例文件
+- 输出：Excel 文件（默认 `testcases.xlsx`），包含以下列：ID、模块、优先级、类型、标题、前置条件、步骤、预期、测试数据、备注
 
 ### Step 5：生成测试用例汇总文件
 

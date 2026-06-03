@@ -50,13 +50,17 @@ description: 分析 prd/{feature-dir} 下的 PRD 文档，输出结构化需求�
 6. **格式检查与转换**：若确定的 PRD 文件不是 `.md` 格式，必须先执行文档格式转换脚本将其转为 Markdown，再继续后续分析。严禁跳过转换直接读取非 Markdown 文件。
 
 ### Step 2：预处理 PRD
+#### 脚本执行规范
+- 所有的辅助脚本都存放在本技能目录的 `scripts/` 下。
+- 在执行任何脚本之前，你必须先获取本 `SKILL.md` 所在的绝对路径，并将其作为基准路径来定位 `scripts/` 目录。
+- **执行示例**：如果本 `SKILL.md` 路径为 `/path/to/my-skill/SKILL.md`，则你应当执行 `/path/to/my-skill/scripts/process.py`。
 
 #### 在线文档下载辅助脚本
 
 当 PRD 正文中引用了 `https://doc.weixin.qq.com/` 域名下的腾讯企业微信在线文档链接，说明关键信息在在线文档上，需要将这些在线文档下载到本地再纳入需求分析。
 
 脚本路径：
-- `.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/wechat_doc_downloader.py`
+- `scripts/wechat_doc_downloader.py`
 
 适用场景：
 - PRD 正文中出现了 `https://doc.weixin.qq.com/sheet/...` 或 `https://doc.weixin.qq.com/doc/...` 等在线文档链接
@@ -66,7 +70,7 @@ description: 分析 prd/{feature-dir} 下的 PRD 文档，输出结构化需求�
 推荐命令：
 
 ```bash
-python .claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/wechat_doc_downloader.py \
+python scripts/wechat_doc_downloader.py \
   "https://doc.weixin.qq.com/sheet/e3_AbYA7wb9AAYCNoSNuQCISQ0aTj0ej" \
   --output-dir prd/{feature-dir}
 ```
@@ -85,7 +89,7 @@ python .claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/we
 当需求目录下的 PRD 文档为非 Markdown 格式（如 `.docx`、`.xlsx`、`.pptx`、`.pdf`等）时，必须先使用转换脚本将其转为 Markdown，再读取转换后的 `.md` 文件进行分析。
 
 脚本路径：
-- `.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/doc_convert_to_markdown.py`
+- `scripts/doc_convert_to_markdown.py`
 
 适用场景：
 - PRD 主文档为 `.docx`、`.pdf`、`.pptx`、`.xlsx` 或图片格式
@@ -95,7 +99,7 @@ python .claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/we
 推荐命令：
 
 ```bash
-python .claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/doc_convert_to_markdown.py \
+python scripts/doc_convert_to_markdown.py \
   prd/{feature-dir}/{feature-name}.docx \
 ```
 
@@ -131,7 +135,7 @@ python .claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/do
 当 PRD 中包含图片，且图片承载了页面布局、交互状态、流程流转、字段说明等关键信息时，先运行图片解析脚本，再继续正文分析。
 
 脚本路径：
-- `.claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/prd_image_parser.py`
+- `scripts/prd_image_parser.py`
 
 适用场景：
 - PRD 中有 UI 原型图、流程图、架构图、页面截图
@@ -141,7 +145,7 @@ python .claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/do
 推荐命令：
 
 ```bash
-python .claude/plugins/marketplaces/qa-plugins/skills/qa-prd-analysis/scripts/prd_image_parser.py \
+python scripts/prd_image_parser.py \
   --prd-file prd/{feature-dir}/{feature-name}.md
 ```
 

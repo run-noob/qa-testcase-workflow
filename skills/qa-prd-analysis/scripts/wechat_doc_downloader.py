@@ -6,11 +6,10 @@ import json
 import re
 import os
 import argparse
-from urllib.parse import unquote
 import logging
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
 
 
 class WechatDocDownloader:
