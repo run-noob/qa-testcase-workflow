@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import time
-import requests
+import httpx
 import json
 import re
 import os
@@ -71,7 +71,7 @@ class WechatDocDownloader:
         try:
             print("尝试从服务端获取微信文档的cookie信息")
             url = "http://perf-storage.huya.info/api/wx_doc/cookie/query"
-            resp = requests.get(url, timeout=5)
+            resp = httpx.get(url, timeout=5)
             if resp.status_code == 200:
                 res = resp.json()
                 if res.get("code") == 200:
@@ -95,7 +95,7 @@ class WechatDocDownloader:
             return self.sid
         ts = str(int(time.time() * 1000))
         auth_url = f"{self.base_url}/diskauth/get_auth_info?doc_id={doc_id}&v={ts}"
-        resp = requests.get(auth_url, headers=self._get_headers(auth_url))
+        resp = httpx.get(auth_url, headers=self._get_headers(auth_url))
         if resp.status_code != 200:
             raise Exception(f"Auth request failed with status {resp.status_code}")
         resp = resp.json()
@@ -105,7 +105,7 @@ class WechatDocDownloader:
     
     def _get_banner_info(self):
         banner_url = f"{self.base_url}/disk/getbannerinfo?func=3&captcha_sence=1"
-        resp = requests.get(banner_url, headers=self._get_headers(banner_url))
+        resp = httpx.get(banner_url, headers=self._get_headers(banner_url))
         msg = f"Cookie check failed, status code: {resp.status_code}, res: {resp.text}, cannot proceed with export"
         if resp.status_code != 200:
             raise Exception(msg)
@@ -126,7 +126,7 @@ class WechatDocDownloader:
                     param_key: operation_id,
                     "timestamp": str(int(time.time() * 1000)),
                 }
-                resp = requests.get(progress_url, headers=self._get_headers(progress_url), params=params).json()
+                resp = httpx.get(progress_url, headers=self._get_headers(progress_url), params=params).json()
                 logger.info(f"Progress: {resp}")
                 if resp["progress"] == 100:
                     return resp
@@ -139,7 +139,7 @@ class WechatDocDownloader:
     def _download_file(self, file_url, file_path):
         """通用下载函数，自动解析文件名"""
         try:
-            content = requests.get(file_url).content
+            content = httpx.get(file_url).content
             with open(file_path, 'wb') as f:
                 f.write(content)
             logger.info(f"File downloaded: {file_path}")
@@ -156,7 +156,7 @@ class WechatDocDownloader:
             data = {"docId": doc_id}
             if version:
                 data["version"] = version
-            resp = requests.post(url, headers=self._get_headers(url), data=data).json()
+            resp = httpx.post(url, headers=self._get_headers(url), data=data).json()
             logger.info(f"Export office response: {resp}")
             return resp['operationId']
         except:
@@ -172,7 +172,7 @@ class WechatDocDownloader:
                 "docID": doc_id,
                 "objectMapping": "{\"hinaMappings\":[]}"
             }
-            resp = requests.post(url, headers=self._get_headers(url), data=data).json()
+            resp = httpx.post(url, headers=self._get_headers(url), data=data).json()
             logger.info(f"Export PDF response: {resp}")
             # 这是转pdf的id
             operation_id = resp['operationID']
