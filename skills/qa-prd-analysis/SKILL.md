@@ -42,18 +42,56 @@ description: 分析 prd/{feature-dir} 下的 PRD 文档，输出结构化需求�
 ## 执行流程
 
 ### Step 1：定位待分析 PRD
-1. 扫描 `prd/` 下的需求目录，排除 `prd/archive/`。
-2. 根据用户输入先确认需求目录名；若未传参数且存在多个目录，必须先让用户确认。
-3. 在目标目录下扫描 PRD 文件（优先 `.md`，也需关注 `.docx`、`.pdf`、`.pptx`、`.xlsx` 等格式），排除 `output/` 下的产出文件。
-4. 优先匹配与目录同名的主 PRD 文件；若有多个候选文件，必须先确认。
-5. 确定唯一目标 PRD 文件、`feature-dir` 与 `feature-name`。
-6. **格式检查与转换**：若确定的 PRD 文件不是 `.md` 格式，必须先执行文档格式转换脚本将其转为 Markdown，再继续后续分析。严禁跳过转换直接读取非 Markdown 文件。
+1. **TAPD 链接检测**：若用户输入的是 TAPD URL（包含 `tapd.cn` 或 `tapd_fe`），则跳过本地文件扫描，直接进入 Step 2 调用 `get_prd_detail_from_tapd.py` 脚本拉取需求详情。从 TAPD 获取到需求数据并生成 `.md` 文件后，将该 `.md` 文件作为 PRD 主文档继续后续分析。
+2. 扫描 `prd/` 下的需求目录，排除 `prd/archive/`。
+3. 根据用户输入先确认需求目录名；若未传参数且存在多个目录，必须先让用户确认。
+4. 在目标目录下扫描 PRD 文件（优先 `.md`，也需关注 `.docx`、`.pdf`、`.pptx`、`.xlsx` 等格式），排除 `output/` 下的产出文件。
+5. 优先匹配与目录同名的主 PRD 文件；若有多个候选文件，必须先确认。
+6. 确定唯一目标 PRD 文件、`feature-dir` 与 `feature-name`。
+7. **格式检查与转换**：若确定的 PRD 文件不是 `.md` 格式，必须先执行文档格式转换脚本将其转为 Markdown，再继续后续分析。严禁跳过转换直接读取非 Markdown 文件。
 
 ### Step 2：预处理 PRD
 #### 脚本执行规范
 - 所有的辅助脚本都存放在本技能目录的 `scripts/` 下。
 - 在执行任何脚本之前，你必须先获取本 `SKILL.md` 所在的绝对路径，并将其作为基准路径来定位 `scripts/` 目录。
 - **执行示例**：如果本 `SKILL.md` 路径为 `/path/to/my-skill/SKILL.md`，则你应当执行 `/path/to/my-skill/scripts/process.py`。
+
+#### TAPD 需求详情获取辅助脚本
+
+当用户直接提供了 TAPD 需求的 URL 链接（而非本地 PRD 文件），说明需要从 TAPD 平台在线拉取需求详情，必须先调用本脚本获取需求数据并生成本地 PRD 文件，再继续后续分析。
+
+脚本路径：
+- `scripts/get_prd_detail_from_tapd.py`
+
+适用场景：
+- 用户输入的是 TAPD 链接，例如 `https://www.tapd.cn/tapd_fe/58049171/story/detail/1158049171001607427`
+- 用户输入的是 TAPD 列表页链接，例如 `https://www.tapd.cn/tapd_fe/58049171/story/list?...&dialog_preview_id=story_1158049171001607427`
+- 需要从 TAPD 获取需求标题、描述、状态、负责人等基本信息作为 PRD 分析的输入
+
+推荐命令：
+
+```bash
+python scripts/get_prd_detail_from_tapd.py \
+  "https://www.tapd.cn/tapd_fe/58049171/story/detail/1158049171001607427" \
+  --output-dir prd/{feature-dir}
+```
+
+常用参数：
+- `url`：必填，TAPD 需求链接，支持列表页和详情页两种 URL 格式
+- `--output-dir`：选填，输出目录路径，指定后在该目录下生成 `.md` 和 `.json` 文件；不指定则打印 JSON 到控制台
+- `--fields`：选填，自定义查询字段，逗号分隔
+
+产物说明：
+- `{需求名称}.md`：需求基本信息的 Markdown 文件，包含标题、基本信息、需求描述
+- `{需求名称}.json`：TAPD API 返回的完整需求数据
+
+认证要求：
+- 需要配置环境变量 `TAPD_SIGN`
+- 设置方式：`export TAPD_SIGN=your_sign_key`
+
+注意事项：
+- 如果未设置 `TAPD_SIGN` 环境变量，脚本将报错退出，通知用户手动输入TAPD需求正文
+- 生成 `.md` 文件后，将其作为 PRD 主文档，后续分析流程与本地 PRD 一致
 
 #### 在线文档下载辅助脚本
 
