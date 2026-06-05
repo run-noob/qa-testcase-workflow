@@ -6,11 +6,17 @@
 
 import asyncio
 import os.path
+import re
 import sys
 import zipfile
 import shutil
 from pathlib import Path
 import httpx
+try:
+    from bs4 import BeautifulSoup
+except:
+    BeautifulSoup = None
+
 DEFAULT_BASE_URL = "http://10.159.154.2:8005"
 DEFAULT_POLL_INTERVAL = 2  # 轮询间隔（秒）
 DEFAULT_MAX_WAIT = 120  # 异步模式最大等待时间（秒）
@@ -56,7 +62,111 @@ def extract_zip(zip_path: Path) -> Path:
     if images_dir.exists():
         print(f"Markdown文件内引用的图片目录：{images_dir}")
     print(f"文档转换成功！output：{main_md}")
+
+    # 格式化 markdown 中的 HTML 块，解决拥挤在一行的问题
+    format_markdown_html(main_md)
+
     return main_md
+
+
+def _find_html_blocks(content: str) -> list[tuple[int, int, str]]:
+    """
+    找到 markdown 内容中的顶级 HTML 块（table, ul, ol）。
+
+    使用栈来正确处理嵌套标签，只返回最外层块。
+    返回 [(start, end, tag_name), ...] 按 start 位置排序。
+    """
+    blocks: list[tuple[int, int, str]] = []
+
+    for tag in ("table", "ul", "ol"):
+        open_re = re.compile(r"<" + tag + r"\b[^>]*>", re.IGNORECASE)
+        close_re = re.compile(r"</" + tag + r"\s*>", re.IGNORECASE)
+        stack: list[int] = []
+        pos = 0
+
+        while pos < len(content):
+            open_match = open_re.search(content, pos)
+            close_match = close_re.search(content, pos)
+
+            if not open_match and not close_match:
+                break
+
+            open_pos = open_match.start() if open_match else float("inf")
+            close_pos = close_match.start() if close_match else float("inf")
+
+            if open_pos < close_pos:
+                stack.append(open_match.start())
+                pos = open_match.end()
+            else:
+                if stack:
+                    start_pos = stack.pop()
+                    if not stack:
+                        # 最外层闭合，记录这个块
+                        blocks.append((start_pos, close_match.end(), tag))
+                pos = close_match.end()
+
+    # 按起始位置排序
+    blocks.sort(key=lambda x: x[0])
+
+    # 去除嵌套在其他块内部的块（如 table 内的 ul）
+    top_level: list[tuple[int, int, str]] = []
+    for i, (start, end, tag) in enumerate(blocks):
+        is_nested = any(
+            other_start < start and other_end > end
+            for j, (other_start, other_end, _) in enumerate(blocks)
+            if i != j
+        )
+        if not is_nested:
+            top_level.append((start, end, tag))
+
+    return top_level
+
+
+def _format_html_block(html_str: str) -> str:
+    """使用 BeautifulSoup 的 prettify() 格式化 HTML 块，添加换行和缩进。"""
+    soup = BeautifulSoup(html_str, "html.parser")
+    formatted = soup.prettify()
+    return formatted.strip()
+
+
+def format_markdown_html(md_path: Path) -> Path:
+    """
+    找到 markdown 文件中的 HTML 块（table/ul/ol），用 BeautifulSoup prettify()
+    格式化使其可读，解决 mineru 输出挤在一行的问题。
+
+    返回同一个 Path 对象，方便链式调用。
+    """
+    try:
+        content = md_path.read_text(encoding="utf-8")
+        blocks = _find_html_blocks(content)
+        
+        if not blocks:
+            return md_path
+        if BeautifulSoup is None:
+            print("当前python环境未安装beautifulsoup4，无法格式化markdown内容里的html标签，安装：python -m pip install beautifulsoup4")
+            return md_path
+        # 从后往前替换，保证前面的位置不受影响
+        for start, end, _tag in reversed(blocks):
+            html_str = content[start:end]
+
+            # 跳过已经是 prettify 格式的块（含至少 3 个换行的块说明已格式化过）
+            if html_str.count("\n") >= 3:
+                continue
+
+            raw = _format_html_block(html_str)
+
+            # 检查前后是否已有空行，避免重复添加
+            prefix = "\n" if start > 0 and not content[start - 1:start] in ("\n", "") else ""
+            suffix = "\n" if end < len(content) and not content[end:end + 1] in ("\n", "") else ""
+
+            formatted = prefix + raw + suffix
+            content = content[:start] + formatted + content[end:]
+
+        md_path.write_text(content, encoding="utf-8")
+        print("HTML 块格式化完成")
+    except:
+        pass
+    return md_path
 
 
 async def convert_sync(

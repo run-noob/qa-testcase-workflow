@@ -20,6 +20,13 @@ description: 基于 PRD 分析报告和变更影响分析结果，生成流程�
 ## 前置条件
 优先检查：
 1. 存在 `prd/{feature-dir}/output/*-analysis.md`
+2. **检查是否已有用例**：检查 `prd/{feature-dir}/output/test-cases/` 目录是否已存在。
+   - 如果目录已存在且有 `.md` 用例文件，**必须先征求用户确认**是否要继续重新生成。
+   - 向用户说明：
+     - 旧用例目录：`prd/{feature-dir}/output/test-cases/`
+     - 备份名称示例：`prd/{feature-dir}/output/test-cases-backup-{序号}/`
+   - 如果用户选择**重新生成**，先将旧的 `test-cases/` 目录重命名为 `test-cases-backup-{序号}/`（如 `test-cases-backup-001/`、`test-cases-backup-002/`，序号自动递增避免冲突），然后再继续生成新的用例。
+   - 如果用户选择**不重新生成**，直接终止执行，提示用户可查看已有用例。
 
 ## 强制规则
 2. 生成的测试用例统一写入 `prd/{feature-dir}/output/test-cases/`。
