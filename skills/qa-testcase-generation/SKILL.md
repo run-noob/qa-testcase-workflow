@@ -20,6 +20,8 @@ description: 基于 PRD 分析报告和变更影响分析结果，生成流程�
 ## 前置条件
 优先检查：
 1. 存在 `prd/{feature-dir}/output/*-analysis.md`
+   - **若分析报告不存在**，自动调用 `/qa-prd-analysis` 技能先生成分析报告，完成后再继续执行本技能。
+   - 生成完成后，验证 `prd/{feature-dir}/output/*-analysis.md` 已成功产出，若仍未生成则中止并报错。
 2. **检查是否已有用例**：检查 `prd/{feature-dir}/output/test-cases/` 目录是否已存在。
    - 如果目录已存在且有 `.md` 用例文件，**必须先征求用户确认**是否要继续重新生成。
    - 向用户说明：
@@ -41,7 +43,7 @@ description: 基于 PRD 分析报告和变更影响分析结果，生成流程�
 ### Step 1：加载输入材料
 读取：
 - `AGENTS.md` （如有）
-- `prd/{feature-dir}/output/*-analysis.md`
+- `prd/{feature-dir}/output/*-analysis.md`，若不存在，先调用 `/qa-prd-analysis`生成
 - `prd/{feature-dir}/output/*-clarifications.md`, 若澄清问题清单内还有未确认的问题，优先询问用户是否忽略未澄清的问题
 - `skills/qa-testcase-generation/case-template.md`
 - `skills/qa-testcase-generation/case-standards.md`
@@ -147,5 +149,5 @@ python scripts/markdown_case_convert_to_excel.py prd/{feature-dir}/output/test-c
 
 ## 失败处理
 如遇以下情况，中止并说明：
-- 分析报告缺失
+- 分析报告缺失且自动生成失败（已尝试调用 `/qa-prd-analysis` 但仍未产出有效分析报告）
 - 分析报告中的功能点过于模糊，无法构建操作流
