@@ -9,7 +9,7 @@
     {
       "name": "qa-testcase-workflow",
       "description": "Core qa workflow skills library for Claude Code",
-      "version": "0.4.0",
+      "version": "0.4.1",
       "source": {
         "source": "github",
         "repo": "run-noob/qa-testcase-workflow"

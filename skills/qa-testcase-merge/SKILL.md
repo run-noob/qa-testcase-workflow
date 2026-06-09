@@ -6,7 +6,7 @@ description: 将当前需求目录下的测试用例合并到全量用例库，�
 # QA 测试用例合并归档 Skill
 
 ## 适用场景
-当用户确认当前需求测试完成、评审通过，准备把 `prd/{需求目录}/output/test-cases/` 产出并入 `test-cases/` 全量用例库，并归档对应 PRD 目录时使用本 Skill。
+当用户确认当前需求测试完成、评审通过，准备把 `prd/{需求目录}/output/test-cases/` 产出用例合并入 `test-cases/` 全量用例库，并归档对应 PRD 目录时使用本 Skill。
 
 建议调用示例：
 - `/qa-testcase-merge 退款需求`
@@ -28,14 +28,13 @@ description: 将当前需求目录下的测试用例合并到全量用例库，�
 1. `prd/{需求目录}/output/test-cases/` 下存在当前需求生成的用例文件。
 2. 存在 `prd/{需求目录}/output/test-cases/review-report.md`。
 3. 评审结论为“通过”或“有条件通过且已修复完成”。
-4. `test-cases/index.md` 可读取；若不存在，则需要同时初始化它。
 
 如果评审未通过：
 - 不要执行真实合并。
 - 先提示用户回到 `/qa-testcase-review` 修复问题。
 
 ## 强制规则
-1. 任务开始前先读取 `glossary/`、`test-cases/index.md`。
+1. 任务开始前先读取 `glossary/`、`test-cases/index.md`（如有）。
 2. 先产出合并计划，再请求用户确认，不要直接改全量用例库。
 3. 只在用户明确确认后，才允许修改 `test-cases/` 和归档 `prd/{需求目录}/`。
 4. 合并时必须确保用例 ID 唯一；如冲突，必须重新编号并记录映射关系。
