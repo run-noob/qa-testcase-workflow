@@ -6,7 +6,7 @@ description: 将当前需求目录下的测试用例合并到全量用例库，�
 # QA 测试用例合并归档 Skill
 
 ## 适用场景
-当用户确认当前需求测试完成、评审通过，准备把 `prd/{需求目录}/output/test-cases/` 产出用例合并入 `test-cases/` 全量用例库，并归档对应 PRD 目录时使用本 Skill。
+当用户确认当前需求测试完成、评审通过，准备把 `prd/{feature-dir}/output/test-cases/` 产出用例合并入 `test-cases/` 全量用例库，并归档对应 PRD 目录时使用本 Skill。
 
 建议调用示例：
 - `/qa-testcase-merge 退款需求`
@@ -15,7 +15,7 @@ description: 将当前需求目录下的测试用例合并到全量用例库，�
 ## 关键建议
 本 Skill 采用“两阶段执行”：
 1. **先生成合并计划**：分析将新增、修改、废弃哪些文件与用例。
-2. **等待用户确认后再落盘**：只有用户明确确认，才真正修改 `test-cases/` 与归档 `prd/{需求目录}/`。
+2. **等待用户确认后再落盘**：只有用户明确确认，才真正修改 `test-cases/` 与归档 `prd/{feature-dir}/`。
 
 这样可以显著降低误合并和误归档风险。
 
@@ -25,8 +25,8 @@ description: 将当前需求目录下的测试用例合并到全量用例库，�
 
 ## 前置条件
 优先检查：
-1. `prd/{需求目录}/output/test-cases/` 下存在当前需求生成的用例文件。
-2. 存在 `prd/{需求目录}/output/test-cases/review-report.md`。
+1. `prd/{feature-dir}/output/test-cases/` 下存在当前需求生成的用例文件。
+2. 存在 `prd/{feature-dir}/output/test-cases/review-report.md`。
 3. 评审结论为“通过”或“有条件通过且已修复完成”。
 
 如果评审未通过：
@@ -36,7 +36,7 @@ description: 将当前需求目录下的测试用例合并到全量用例库，�
 ## 强制规则
 1. 任务开始前先读取 `glossary/`、`test-cases/index.md`（如有）。
 2. 先产出合并计划，再请求用户确认，不要直接改全量用例库。
-3. 只在用户明确确认后，才允许修改 `test-cases/` 和归档 `prd/{需求目录}/`。
+3. 只在用户明确确认后，才允许修改 `test-cases/` 和归档 `prd/{feature-dir}/`。
 4. 合并时必须确保用例 ID 唯一；如冲突，必须重新编号并记录映射关系。
 5. 处理废弃用例时，默认保留历史记录，不直接物理删除，除非用户明确要求。
 6. 更新 `test-cases/index.md`，必要时更新模块级 `index.md`。
@@ -47,8 +47,8 @@ description: 将当前需求目录下的测试用例合并到全量用例库，�
 
 ### Phase A：生成合并计划（只读分析）
 读取：
-- `prd/{需求目录}/output/test-cases/test-case-summary.md`
-- `prd/{需求目录}/output/test-cases/review-report.md`（如存在）
+- `prd/{feature-dir}/output/test-cases/test-case-summary.md`
+- `prd/{feature-dir}/output/test-cases/review-report.md`（如存在）
 - `test-cases/index.md`
 - 与目标模块有关的存量用例文件（按需）
 
@@ -65,7 +65,7 @@ description: 将当前需求目录下的测试用例合并到全量用例库，�
 必须向用户展示合并计划摘要，并明确询问：
 - 是否按此计划执行真实合并与归档
 
-未得到确认前，不要修改任何全量库文件，也不要移动 `prd/{需求目录}/`。
+未得到确认前，不要修改任何全量库文件，也不要移动 `prd/{feature-dir}/`。
 
 ### Phase C：执行真实合并（仅在确认后）
 
@@ -94,11 +94,11 @@ description: 将当前需求目录下的测试用例合并到全量用例库，�
 ### Phase D：归档 PRD
 仅在合并完成后执行：
 1. 创建归档目录：`prd/archive/YYYY-MM-DD-{feature-name}/`
-2. 将 `prd/{需求目录}/` 下本次需求相关文件移动到归档目录
+2. 将 `prd/{feature-dir}/` 下本次需求相关文件移动到归档目录
 3. 如团队需要保留占位目录，仅重建当前需求目录的空骨架：
-   - `prd/{需求目录}/images/`
-   - `prd/{需求目录}/output/`
-   - `prd/{需求目录}/output/test-cases/`
+   - `prd/{feature-dir}/images/`
+   - `prd/{feature-dir}/output/`
+   - `prd/{feature-dir}/output/test-cases/`
 
 ### Phase E：输出合并结果
 合并完成后，向用户输出摘要：

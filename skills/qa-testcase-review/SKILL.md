@@ -14,21 +14,21 @@ description: 审查当前需求生成的测试用例质量，检查完整性、�
 
 ## 输入参数
 - `$ARGUMENTS` 可选。
-- 未传参数时，默认先向用户确认需求目录，再评审 `prd/{需求目录}/output/test-cases/` 下当前需求的所有产出文件。
+- 未传参数时，默认先向用户确认需求目录，再评审 `prd/{feature-dir}/output/test-cases/` 下当前需求的所有产出文件。
 
 ## 前置条件
 在进入评审流程前，必须完成以下检查：
 
-1. **检查用例是否已生成**：检查 `prd/{需求目录}/output/test-cases/` 目录是否存在且包含 `.md` 用例文件（不包括 `_progress.md` 和 `review-report.md`）。
+1. **检查用例是否已生成**：检查 `prd/{feature-dir}/output/test-cases/` 目录是否存在且包含 `.md` 用例文件（不包括 `_progress.md` 和 `review-report.md`）。
    - 若目录不存在或无任何用例文件，中止并提示：**"当前需求尚未生成测试用例，请先执行 `/qa-testcase-generation` 生成用例后再评审。"**
 
-2. **检查用例是否已全部完成**：检查 `prd/{需求目录}/output/test-cases/_progress.md` 是否存在。
+2. **检查用例是否已全部完成**：检查 `prd/{feature-dir}/output/test-cases/_progress.md` 是否存在。
    - 若存在且有未完成模块（状态为 待生成 或 生成中），**必须询问用户**：
      > "检测到用例生成尚未全部完成（`_progress.md` 中存在未完成模块）。是否仍要继续对已生成的用例进行评审？"
    - 若用户选择**继续**，则仅评审已完成的模块用例。
    - 若用户选择**不继续**，终止执行，提示用户可以等待用例全部生成后再评审。
 
-3. **检查是否已有评审报告**：检查 `prd/{需求目录}/output/test-cases/review-report.md` 是否存在。
+3. **检查是否已有评审报告**：检查 `prd/{feature-dir}/output/test-cases/review-report.md` 是否存在。
    - 若存在，**必须询问用户**：
      > "检测到已存在评审报告 `review-report.md`（生成于 {文件修改时间}）。是否要重新评审并覆盖原报告？"
    - 若用户选择**重新评审**，继续执行，最终覆盖原报告。
@@ -39,15 +39,15 @@ description: 审查当前需求生成的测试用例质量，检查完整性、�
 1. 逐个读取当前需求下的生成用例文件进行评审。
 2. 默认只输出评审报告，不直接修改用例文件。
 3. 如果需要自动修复，必须先得到用户明确同意。
-4. 评审产出写入 `prd/{需求目录}/output/test-cases/review-report.md`。
+4. 评审产出写入 `prd/{feature-dir}/output/test-cases/review-report.md`。
 
 ## 执行流程
 
 ### Step 1：加载评审材料
 读取：
-- `prd/{需求目录}/output/*-analysis.md`
-- `prd/{需求目录}/output/test-cases/test-case-summary.md`
-- `prd/{需求目录}/output/test-cases/` 下所有当前需求生成的用例文件
+- `prd/{feature-dir}/output/*-analysis.md`
+- `prd/{feature-dir}/output/test-cases/test-case-summary.md`
+- `prd/{feature-dir}/output/test-cases/` 下所有当前需求生成的用例文件
 - `glossary/`：遇到不懂的业务概念，在该目录查找相关术语文件。
 
 ### Step 2：多维度评审
@@ -72,7 +72,7 @@ description: 审查当前需求生成的测试用例质量，检查完整性、�
 #### 2.3 规范性评审
 检查：
 - 文件格式是否符合模板要求
-- 用例 ID 是否符合编号规则，是否源自产品分析文档 `prd/{需求目录}/output/*-analysis.md`
+- 用例 ID 是否符合编号规则，是否源自产品分析文档 `prd/{feature-dir}/output/*-analysis.md`
 - 优先级分配是否合理
 - 描述是否清晰无歧义
 - 步骤是否可独立执行
@@ -85,7 +85,7 @@ description: 审查当前需求生成的测试用例质量，检查完整性、�
 - 是否存在高风险场景优先级过低的问题
 
 ### Step 3：输出评审报告
-写入：`prd/{需求目录}/output/test-cases/review-report.md`
+写入：`prd/{feature-dir}/output/test-cases/review-report.md`
 
 建议结构：
 
@@ -175,4 +175,4 @@ description: 审查当前需求生成的测试用例质量，检查完整性、�
 | 汇总文件不存在 | **中止**，说明缺失 `test-case-summary.md`，建议重新执行 `/qa-testcase-generation` 的 Step 5 |
 | 分析报告与用例内容明显不匹配 | **中止**，说明具体不匹配点，建议确认 PRD 版本是否一致 |
 | 评审范围无法确定 | **中止**，说明原因，建议用户明确指定评审范围 |
-| 当前材料不足以完成有效评审 | **中止**，列出缺失材料清单
+| 当前材料不足以完成有效评审 | **中止**，列出缺失材料清单 |
