@@ -117,26 +117,7 @@ graph LR
 
 ### 安装方式
 
-#### 方式一：通过 GitHub 仓库直接安装（推荐）
-
-在 Claude Code 中输入以下命令一键安装：
-
-```bash
-/plugin install https://github.com/run-noob/qa-testcase-workflow.git
-```
-
-安装完成后，所有 Skill 命令即可直接使用：
-
-```bash
-/qa-testcase-workflow   # 执行完整工作流
-/qa-prd-analysis        # PRD 分析
-/qa-testcase-generation # 用例生成
-/qa-testcase-review     # 用例评审
-/qa-testcase-merge      # 合并归档
-/code-to-prd            # 代码转PRD
-```
-
-#### 方式二：通过 Marketplace 注册安装
+#### 方式一：通过 Marketplace 注册安装
 
 ```bash
 # 1. 添加 Marketplace 源
@@ -146,7 +127,7 @@ graph LR
 /plugin install qa-plugins@qa-testcase-workflow
 ```
 
-#### 方式三：本地手动安装
+#### 方式二：本地手动安装
 
 ```bash
 # 1. 克隆仓库到本地
@@ -165,8 +146,6 @@ git clone https://github.com/run-noob/qa-testcase-workflow.git
 # 查看已安装的插件
 /plugin list
 
-# 测试 Skill 是否可用
-/qa-testcase-workflow --help
 ```
 
 ### 初始化项目结构
@@ -182,11 +161,10 @@ mkdir -p prd/archive test-cases glossary standards
 
 ```bash
 # 更新到最新版本
-/plugin update qa-testcase-workflow
+/plugin update qa-plugins@qa-testcase-workflow
 
 # 或卸载后重新安装
-/plugin uninstall qa-testcase-workflow
-/plugin install https://github.com/run-noob/qa-testcase-workflow.git
+/plugin uninstall qa-plugins@qa-testcase-workflow
 ```
 
 ## 快速开始
