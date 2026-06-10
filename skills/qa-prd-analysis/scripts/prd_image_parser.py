@@ -30,10 +30,13 @@ from typing import Any, Dict, List, Optional, Tuple
 
 SUMMARY_PROMPT_VERSION = "v1"
 IMAGE_PROMPT_VERSION = "v1"
+BATCH_PROMPT_VERSION = "v1"
 DEFAULT_MAX_IMAGES = 50
 DEFAULT_RETRY = 2
 DEFAULT_TIMEOUT = 60
-CONTEXT_WINDOW = 20
+CONTEXT_WINDOW = 50
+DEFAULT_BATCH_GAP = 100
+DEFAULT_MAX_BATCH = 20
 
 
 @dataclass
@@ -82,6 +85,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Ignore caches and force regenerate summary and image analysis.",
     )
+    parser.add_argument("--batch-gap", type=int, default=DEFAULT_BATCH_GAP,
+        help="Max line gap between adjacent images to include in same batch.")
+    parser.add_argument("--max-batch-size", type=int, default=DEFAULT_MAX_BATCH,
+        help="Max images per batch call.")
+    parser.add_argument("--no-batch", action="store_true",
+        help="Disable batching, process images one by one.")
     return parser.parse_args()
 
 
@@ -250,7 +259,7 @@ def local_context(prd_text: str, line_no: int, window: int = CONTEXT_WINDOW) -> 
     end = min(len(lines), line_no + window)
     out = []
     for idx in range(start, end + 1):
-        out.append(f"{idx:04d}: {lines[idx - 1]}")
+        out.append(f"{lines[idx - 1]}")
     return "\n".join(out)
 
 
@@ -289,6 +298,7 @@ def image_analysis_key(
     file_summary_text: str,
     model: str,
     detail_level: str,
+    prompt_version: str = IMAGE_PROMPT_VERSION,
 ) -> str:
     payload = json.dumps(
         {
@@ -296,7 +306,7 @@ def image_analysis_key(
             "local_context_sha": sha256_text(local_context_text),
             "file_summary_sha": sha256_text(file_summary_text),
             "detail_level": detail_level,
-            "image_prompt_version": IMAGE_PROMPT_VERSION,
+            "image_prompt_version": prompt_version,
             "model": model,
         },
         ensure_ascii=False,
@@ -430,13 +440,126 @@ def generate_prd_summary(prd_text: str, model: str, timeout: int, retry: int, on
     )
 
 
+def group_images_by_proximity(
+    refs: List[ImageRef],
+    gap_threshold: int,
+    max_size: int,
+) -> List[List[ImageRef]]:
+    if not refs:
+        return []
+    groups: List[List[ImageRef]] = [[refs[0]]]
+    for ref in refs[1:]:
+        last_line = groups[-1][-1].line_no
+        if ref.line_no - last_line <= gap_threshold and len(groups[-1]) < max_size:
+            groups[-1].append(ref)
+        else:
+            groups.append([ref])
+    return groups
+
+
+def batch_local_context(prd_text: str, refs: List[ImageRef], window: int = CONTEXT_WINDOW) -> str:
+    lines = prd_text.splitlines()
+    first_line = refs[0].line_no
+    last_line = refs[-1].line_no
+    start = max(1, first_line - window)
+    end = min(len(lines), last_line + window)
+    return "\n".join(f"{lines[i - 1]}" for i in range(start, end + 1))
+
+
+def build_batch_prompt(
+    detail_level: str,
+    file_summary: str,
+    heading_chain: List[str],
+    batch_ctx: str,
+    batch_refs: List[ImageRef],
+) -> str:
+    detail_map = {
+        "brief": "简洁描述，优先关键点。",
+        "standard": "标准深度，覆盖关键细节与边界信息。",
+        "deep": "深入描述，尽可能细化组件、流程与条件关系。",
+    }
+    n = len(batch_refs)
+    heading_text = " > ".join(heading_chain) if heading_chain else "[无章节上下文]"
+    filenames = [r.resolved_path.name for r in batch_refs]
+
+    prompt = (
+        f"你是QA视觉分析助手，本次分析 PRD 同一区域的 {n} 张图片。\n\n"
+        "可以从以下维度思考：\n"
+        "1. 图片类型识别（UI原型、流程图、架构图、截图等）\n"
+        "2. 整体布局和空间关系（如果是UI原型图），按从上至下、从左到右的顺序描述区域/组件\n"
+        "3. UI组件的视觉特征及交互状态\n"
+        "4. 图表中的数据关系和流向\n"
+        "5. 与产品需求的关联\n\n"
+        "输出要求：\n"
+        "- 只输出可读文本，不要JSON。\n"
+        "- 对无法识别的信息显式标注：[无法识别: xxx]。\n"
+        "- 不要输出与图片无关的臆测。\n"
+        f"- 详细程度：{detail_map[detail_level]}\n\n"
+        "=== PRD文件摘要 ===\n"
+        f"{file_summary}\n\n"
+        f"=== 图片所在章节链 ===\n{heading_text}\n\n"
+        f"=== 区域上下文（第一张图片前后各{CONTEXT_WINDOW}行至最后一张图片前后各{CONTEXT_WINDOW}行）===\n"
+        f"{batch_ctx}\n\n"
+        # "=== 各图片信息 ===\n"
+    )
+    # for r in batch_refs:
+    #     prompt += f"- {r.resolved_path.name}  alt: {r.alt or '[空]'}\n"
+
+    prompt += (
+        "\n=== 输出格式要求 ===\n"
+        "逐张分析，使用文件名作为分隔符，格式严格如下（每个 ### 标题单独一行）：\n"
+    )
+    for fname in filenames:
+        prompt += f"### {fname}\n[该图片的分析文本]\n"
+
+    return prompt
+
+
+def analyze_images_batch(
+    filenames_and_paths: List[Tuple[str, Path]],
+    prompt_text: str,
+    model: str,
+    timeout: int,
+    retry: int,
+    on_error: str,
+) -> Optional[str]:
+    content: List[Dict[str, Any]] = [{"type": "text", "text": prompt_text}]
+    for _fname, img_path in filenames_and_paths:
+        mime = guess_mime(img_path)
+        b64 = base64.b64encode(img_path.read_bytes()).decode("utf-8")
+        content.append({"type": "image_url", "image_url": f"data:{mime};base64,{b64}"})
+    messages = [
+        {"role": "system", "content": "你是严谨的QA视觉分析助手。"},
+        {"role": "user", "content": content},
+    ]
+    return call_with_retry(
+        lambda: _openai_responses_call(model=model, messages=messages, timeout=timeout),
+        retry=retry,
+        on_error=on_error,
+    )
+
+
+def parse_batch_response(response_text: str, filenames: List[str]) -> Dict[str, str]:
+    results: Dict[str, str] = {fn: "" for fn in filenames}
+    positions: List[Tuple[int, int, str]] = []
+    for fn in filenames:
+        pattern = re.compile(r"###\s*" + re.escape(fn) + r"[^\n]*\n?")
+        m = pattern.search(response_text)
+        if m:
+            positions.append((m.start(), m.end(), fn))
+    positions.sort()
+    for i, (_, content_start, fn) in enumerate(positions):
+        next_header = positions[i + 1][0] if i + 1 < len(positions) else len(response_text)
+        results[fn] = response_text[content_start:next_header].strip()
+    return results
+
+
 def build_image_prompt(
     detail_level: str,
     file_summary: str,
     heading_chain: List[str],
     local_ctx: str,
     image_alt: str,
-    image_raw_line: str,
 ) -> str:
     detail_map = {
         "brief": "简洁描述，优先关键点。",
@@ -554,6 +677,25 @@ def build_md_report(
     return "\n".join(lines)
 
 
+def _append_output(
+    ref: ImageRef,
+    analysis_text: str,
+    include_image_snippet: bool,
+    image_outputs: List[Dict[str, Any]],
+) -> None:
+    out_item: Dict[str, Any] = {
+        "image_id": ref.resolved_path.name,
+        "image_path": str(ref.resolved_path),
+        "raw_path": str(ref.raw_path),
+        "source_line": ref.line_no,
+        "alt": ref.alt,
+        "analysis_text": analysis_text,
+    }
+    if include_image_snippet:
+        out_item["image_snippet"] = ref.raw_line
+    image_outputs.append(out_item)
+
+
 def main() -> int:
     args = parse_args()
     if not args.emit_json and not args.emit_md:
@@ -637,86 +779,186 @@ def main() -> int:
     success = 0
     failed = 0
 
-    for ref in selected:
-        if not ref.resolved_path.exists():
-            msg = f"图片不存在: {ref.resolved_path}"
-            errors.append(msg)
-            failed += 1
-            if args.on_error == "abort":
-                print(f"[ERROR] {msg}", file=sys.stderr)
-                return 1
-            continue
+    if args.no_batch:
+        groups: List[List[ImageRef]] = [[ref] for ref in selected]
+    else:
+        groups = group_images_by_proximity(selected, args.batch_gap, args.max_batch_size)
 
-        heading = heading_chain_until_line(prd_text, ref.line_no)
-        ctx = local_context(prd_text, ref.line_no) if ref.line_no > 0 else "[无局部上下文]"
-        prompt_text = build_image_prompt(
-            detail_level=args.detail_level,
-            file_summary=summary,
-            heading_chain=heading,
-            local_ctx=ctx,
-            image_alt=ref.alt,
-            image_raw_line=ref.raw_line or "[无引用行]",
-        )
-        i_key = image_analysis_key(
-            image_sha=sha256_file(ref.resolved_path),
-            local_context_text=ctx,
-            file_summary_text=summary,
-            model=args.model,
-            detail_level=args.detail_level,
-        )
-        img_cache_path, _ = cache_paths(cache_dir, i_key, "image")
-
-        analysis_text = ""
-        if img_cache_path.exists() and not args.force_refresh:
-            img_payload = read_json(img_cache_path)
-            analysis_text = img_payload["analysis_text"]
-        elif args.dry_run:
-            analysis_text = "[dry-run] image analysis skipped."
-        else:
-            try:
-                analysis_text = analyze_image(
-                    image_path=ref.resolved_path,
-                    prompt_text=prompt_text,
-                    model=args.model,
-                    timeout=args.timeout,
-                    retry=args.retry,
-                    on_error=args.on_error,
-                )
-                if analysis_text:
-                    write_json(
-                        img_cache_path,
-                        {
-                            "key": i_key,
-                            "image_prompt_version": IMAGE_PROMPT_VERSION,
-                            "model": args.model,
-                            "detail_level": args.detail_level,
-                            "created_at": now_iso(),
-                            "image_path": str(ref.resolved_path),
-                            "raw_path": str(ref.raw_path),
-                            "analysis_text": analysis_text,
-                        },
-                    )
-            except Exception as e:  # pylint: disable=broad-except
-                msg = f"{ref.image_id} 解析失败: {e}"
+    for group in groups:
+        # Separate existing vs missing files
+        valid_group: List[ImageRef] = []
+        for ref in group:
+            if not ref.resolved_path.exists():
+                msg = f"图片不存在: {ref.resolved_path}"
                 errors.append(msg)
                 failed += 1
                 if args.on_error == "abort":
                     print(f"[ERROR] {msg}", file=sys.stderr)
                     return 1
-                continue
+            else:
+                valid_group.append(ref)
 
-        out_item: Dict[str, Any] = {
-            "image_id": ref.image_id,
-            "image_path": str(ref.resolved_path),
-            "raw_path": str(ref.raw_path),
-            "source_line": ref.line_no,
-            "alt": ref.alt,
-            "analysis_text": analysis_text,
-        }
-        if args.include_image_snippet:
-            out_item["image_snippet"] = ref.raw_line
-        image_outputs.append(out_item)
-        success += 1
+        if not valid_group:
+            continue
+
+        # Pass 1: check single-image cache for each image
+        uncached_from_single: List[ImageRef] = []
+        group_analysis: Dict[str, Optional[str]] = {}  # str(resolved_path) -> analysis_text
+
+        for ref in valid_group:
+            ctx = local_context(prd_text, ref.line_no) if ref.line_no > 0 else "[无局部上下文]"
+            i_key = image_analysis_key(
+                image_sha=sha256_file(ref.resolved_path),
+                local_context_text=ctx,
+                file_summary_text=summary,
+                model=args.model,
+                detail_level=args.detail_level,
+            )
+            img_cache_path, _ = cache_paths(cache_dir, i_key, "image")
+            if img_cache_path.exists() and not args.force_refresh:
+                group_analysis[str(ref.resolved_path)] = read_json(img_cache_path)["analysis_text"]
+            else:
+                uncached_from_single.append(ref)
+
+        if not uncached_from_single:
+            # All cached via single-image keys
+            for ref in valid_group:
+                _append_output(ref, group_analysis[str(ref.resolved_path)], args.include_image_snippet, image_outputs)
+                success += 1
+            continue
+
+        use_batch = len(uncached_from_single) >= 2 and not args.no_batch
+
+        if use_batch:
+            # Pass 2: check batch cache for each uncached image
+            b_ctx = batch_local_context(prd_text, uncached_from_single)
+            still_uncached: List[Tuple[ImageRef, str]] = []  # (ref, b_key)
+            for ref in uncached_from_single:
+                b_key = image_analysis_key(
+                    image_sha=sha256_file(ref.resolved_path),
+                    local_context_text=b_ctx,
+                    file_summary_text=summary,
+                    model=args.model,
+                    detail_level=args.detail_level,
+                    prompt_version=BATCH_PROMPT_VERSION,
+                )
+                b_cache_path, _ = cache_paths(cache_dir, b_key, "image")
+                if b_cache_path.exists() and not args.force_refresh:
+                    group_analysis[str(ref.resolved_path)] = read_json(b_cache_path)["analysis_text"]
+                else:
+                    still_uncached.append((ref, b_key))
+
+            if still_uncached:
+                if args.dry_run:
+                    for ref, _ in still_uncached:
+                        group_analysis[str(ref.resolved_path)] = "[dry-run] image analysis skipped."
+                else:
+                    refs_to_batch = [r for r, _ in still_uncached]
+                    filenames = [r.resolved_path.name for r in refs_to_batch]
+                    heading = heading_chain_until_line(prd_text, refs_to_batch[0].line_no)
+                    batch_prompt = build_batch_prompt(
+                        detail_level=args.detail_level,
+                        file_summary=summary,
+                        heading_chain=heading,
+                        batch_ctx=b_ctx,
+                        batch_refs=refs_to_batch,
+                    )
+                    print(f"[BATCH] 批量分析 {len(refs_to_batch)} 张图片: {', '.join(filenames)}")
+                    try:
+                        raw_response = analyze_images_batch(
+                            [(r.resolved_path.name, r.resolved_path) for r in refs_to_batch],
+                            batch_prompt,
+                            model=args.model,
+                            timeout=args.timeout,
+                            retry=args.retry,
+                            on_error=args.on_error,
+                        )
+                        per_image = parse_batch_response(raw_response or "", filenames)
+                        for ref, b_key in still_uncached:
+                            fname = ref.resolved_path.name
+                            analysis_text = per_image.get(fname, "")
+                            b_cache_path, _ = cache_paths(cache_dir, b_key, "image")
+                            if analysis_text:
+                                write_json(b_cache_path, {
+                                    "key": b_key,
+                                    "image_prompt_version": BATCH_PROMPT_VERSION,
+                                    "model": args.model,
+                                    "detail_level": args.detail_level,
+                                    "created_at": now_iso(),
+                                    "image_path": str(ref.resolved_path),
+                                    "raw_path": str(ref.raw_path),
+                                    "analysis_text": analysis_text,
+                                })
+                            group_analysis[str(ref.resolved_path)] = analysis_text
+                    except Exception as e:  # pylint: disable=broad-except
+                        msg = f"批量解析失败 ({', '.join(filenames)}): {e}"
+                        errors.append(msg)
+                        for ref, _ in still_uncached:
+                            group_analysis[str(ref.resolved_path)] = None
+                        if args.on_error == "abort":
+                            print(f"[ERROR] {msg}", file=sys.stderr)
+                            return 1
+        else:
+            # Single-image path for each uncached image
+            for ref in uncached_from_single:
+                ctx = local_context(prd_text, ref.line_no) if ref.line_no > 0 else "[无局部上下文]"
+                i_key = image_analysis_key(
+                    image_sha=sha256_file(ref.resolved_path),
+                    local_context_text=ctx,
+                    file_summary_text=summary,
+                    model=args.model,
+                    detail_level=args.detail_level,
+                )
+                img_cache_path, _ = cache_paths(cache_dir, i_key, "image")
+                heading = heading_chain_until_line(prd_text, ref.line_no)
+                prompt_text = build_image_prompt(
+                    detail_level=args.detail_level,
+                    file_summary=summary,
+                    heading_chain=heading,
+                    local_ctx=ctx,
+                    image_alt=ref.alt,
+                )
+                if args.dry_run:
+                    group_analysis[str(ref.resolved_path)] = "[dry-run] image analysis skipped."
+                else:
+                    try:
+                        analysis_text = analyze_image(
+                            image_path=ref.resolved_path,
+                            prompt_text=prompt_text,
+                            model=args.model,
+                            timeout=args.timeout,
+                            retry=args.retry,
+                            on_error=args.on_error,
+                        )
+                        if analysis_text:
+                            write_json(img_cache_path, {
+                                "key": i_key,
+                                "image_prompt_version": IMAGE_PROMPT_VERSION,
+                                "model": args.model,
+                                "detail_level": args.detail_level,
+                                "created_at": now_iso(),
+                                "image_path": str(ref.resolved_path),
+                                "raw_path": str(ref.raw_path),
+                                "analysis_text": analysis_text,
+                            })
+                        group_analysis[str(ref.resolved_path)] = analysis_text or ""
+                    except Exception as e:  # pylint: disable=broad-except
+                        msg = f"{ref.resolved_path.name} 解析失败: {e}"
+                        errors.append(msg)
+                        group_analysis[str(ref.resolved_path)] = None
+                        if args.on_error == "abort":
+                            print(f"[ERROR] {msg}", file=sys.stderr)
+                            return 1
+
+        # Assemble group outputs in original order
+        for ref in valid_group:
+            path_key = str(ref.resolved_path)
+            analysis_text = group_analysis.get(path_key)
+            if analysis_text is None:
+                failed += 1
+                continue
+            _append_output(ref, analysis_text, args.include_image_snippet, image_outputs)
+            success += 1
 
     mode = "single-image" if args.image_path else "full-prd"
     result = {
@@ -772,8 +1014,8 @@ if __name__ == "__main__":
     # sys.argv[1:] = [
     #     "--prd-file",
     #     # "/Users/zengzhihua/Documents/code/testing-wiki/huya-pc-web/prd/web-nav/web顶部栏tab异化图标支持配置.md",
-    #     "/Users/zengzhihua/Documents/code/testing-wiki/huya-pc-web/prd/buffvip/【日麻AI助手】购买会员.md",
-    #     # "--image-path",
-    #     # "images/f2dda1df57298c02c4aafb599c56200d2ca201c12256e90d076f9393f02e5881.png"
+    #     r"F:\下载\集五卡·瓜分万元大奖\office\集五卡·瓜分万元大奖.md",
+    #     "--image-path",
+    #     "images/1a62d0f8786853ccb5dd563ce6df63451b74a00ff8d6775a4afe4098ee388b4a.png"
     # ]
     sys.exit(main())

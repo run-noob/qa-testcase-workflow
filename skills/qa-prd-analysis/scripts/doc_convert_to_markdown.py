@@ -61,8 +61,8 @@ def extract_zip(zip_path: Path) -> Path:
     print(f"Markdown文件解压到路径: {extract_dir}")
     if images_dir.exists():
         print(f"Markdown文件内引用的图片目录：{images_dir}")
-    # 格式化 markdown 中的 HTML 块，解决拥挤在一行的问题
-    format_markdown_html(main_md)
+    # 格式化 markdown 中的 HTML 块，解决拥挤在一行的问题。
+    # format_markdown_html(main_md)  # 弃用，可能会导致图片解析的上下文全部是html标签
     return main_md
 
 
