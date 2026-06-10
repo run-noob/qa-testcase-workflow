@@ -61,11 +61,8 @@ def extract_zip(zip_path: Path) -> Path:
     print(f"Markdown文件解压到路径: {extract_dir}")
     if images_dir.exists():
         print(f"Markdown文件内引用的图片目录：{images_dir}")
-    print(f"文档转换成功！output：{main_md}")
-
     # 格式化 markdown 中的 HTML 块，解决拥挤在一行的问题
     format_markdown_html(main_md)
-
     return main_md
 
 
@@ -336,6 +333,8 @@ def convert_file(
         转换后的 markdown 文本内容
     """
     file_path = Path(file_path)
+    if not file_path.exists():
+        raise FileNotFoundError(f"文件不存在: {file_path}")
     print(f"开始文档转换: {file_path}")
     _zip_path = asyncio.run(
         convert_to_markdown(file_path, mode, poll_interval, max_wait)
@@ -391,5 +390,19 @@ if __name__ == "__main__":
         max_wait=args.max_wait,
     )
 
-    extract_zip(zip_file)
+    md_file = extract_zip(zip_file)
+    if md_file.exists():
+        print(f"文档转换成功！output：{md_file}")
+        try:
+            extract_dir = zip_file.parent
+            # 将zip文件移动到extract_dir/raw目录下，保留原始文件
+            raw_dir = extract_dir / "raw"
+            raw_dir.mkdir(exist_ok=True)
+            zip_file.rename(raw_dir / zip_file.name)
+            # 将原始文件也移动到raw目录下
+            ori_file_path = Path(args.file)
+            ori_file_path.rename(raw_dir / ori_file_path.name)
+            print(f"原始文件和转换中间产物zip文件已移动到: {raw_dir}")
+        except:
+            pass
 

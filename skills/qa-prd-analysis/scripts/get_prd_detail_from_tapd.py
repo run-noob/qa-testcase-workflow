@@ -18,7 +18,7 @@ import logging
 import httpx
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
 
 TAPD_API_BASE = "https://hytapd.huya.info/proxy"
 TAPD_SIGN = os.environ.get("TAPD_SIGN", "")
@@ -221,7 +221,7 @@ def build_story_markdown(story: dict) -> str:
     return "\n".join(lines)
 
 
-def save_story_output(story: dict, output_dir: str) -> tuple:
+def save_story_output(story: dict, output_dir: str, output_format="md") -> str:
     """
     将需求详情保存到输出目录。
 
@@ -232,6 +232,7 @@ def save_story_output(story: dict, output_dir: str) -> tuple:
     Args:
         story: 需求详情字典
         output_dir: 输出目录路径
+        output_format: 输出格式
 
     Returns:
         tuple: (md_path, json_path) 生成的文件路径
@@ -239,22 +240,23 @@ def save_story_output(story: dict, output_dir: str) -> tuple:
     os.makedirs(output_dir, exist_ok=True)
 
     story_name = story.get("name", "unknown_story")
-    safe_name = sanitize_filename(story_name)
+    safe_name = "tapd-" + sanitize_filename(story_name)
 
     # 保存 Markdown 文件
-    md_path = os.path.join(output_dir, f"{safe_name}.md")
-    md_content = build_story_markdown(story)
-    with open(md_path, "w", encoding="utf-8") as f:
-        f.write(md_content)
-    logger.info(f"Markdown 文件已保存: {md_path}")
-
-    # 保存 JSON 文件
-    json_path = os.path.join(output_dir, f"{safe_name}.json")
-    with open(json_path, "w", encoding="utf-8") as f:
-        json.dump(story, f, ensure_ascii=False, indent=2)
-    logger.info(f"JSON 文件已保存: {json_path}")
-
-    return md_path, json_path
+    if output_format == "md":
+        output_path = os.path.join(output_dir, f"{safe_name}.md")
+        md_content = build_story_markdown(story)
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(md_content)
+        logger.info(f"Markdown 文件已保存: {output_path}")
+        return output_path
+    else:
+        # 保存 JSON 文件
+        output_path = os.path.join(output_dir, f"{safe_name}.json")
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(story, f, ensure_ascii=False, indent=2)
+        logger.info(f"JSON 文件已保存: {output_path}")
+        return output_path
 
 
 def main():
@@ -289,19 +291,21 @@ def main():
     )
 
     args = parser.parse_args()
-
+    workspace_id = None
+    story_id = None
     # 确定 workspace_id 和 story_id
     if args.url:
         parsed = parse_tapd_url(args.url)
         workspace_id = parsed["workspace_id"]
         story_id = parsed["story_id"]
-        logger.info(f"从 URL 解析: workspace_id={workspace_id}, story_id={story_id}")
     elif args.workspace_id and args.story_id:
         workspace_id = args.workspace_id
         story_id = args.story_id
     else:
         parser.error("请提供 TAPD URL，或同时提供 --workspace-id 和 --story-id")
-
+    if not workspace_id or not story_id:
+        parser.error("无法解析 workspace_id 或 story_id，请检查输入")
+    print(f"正在获取需求详情: workspace_id={workspace_id}, story_id={story_id}")
     # 获取需求详情
     try:
         data = fetch_story_detail(workspace_id, story_id, fields=args.fields)
@@ -310,12 +314,10 @@ def main():
         if not story:
             logger.error("未获取到需求数据")
             return None
-
         # 输出到目录（如果指定）
         if args.output_dir:
-            md_path, json_path = save_story_output(story, args.output_dir)
-            print(f"Markdown 文件: {md_path}")
-            print(f"JSON 文件: {json_path}")
+            output_path = save_story_output(story, args.output_dir)
+            print(f"需求正文已保存至文件: {output_path}")
         else:
             # 友好的控制台输出
             print(json.dumps(story, ensure_ascii=False, indent=2))

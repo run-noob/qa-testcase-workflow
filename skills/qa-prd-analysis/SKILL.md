@@ -78,12 +78,11 @@ python scripts/get_prd_detail_from_tapd.py \
 
 常用参数：
 - `url`：必填，TAPD 需求链接，支持列表页和详情页两种 URL 格式
-- `--output-dir`：选填，输出目录路径，指定后在该目录下生成 `.md` 和 `.json` 文件；不指定则打印 JSON 到控制台
+- `--output-dir`：选填，输出目录路径，指定后在该目录下生成 `{需求名称}.md` 文件；不指定则打印 JSON 到控制台
 - `--fields`：选填，自定义查询字段，逗号分隔
 
 产物说明：
 - `{需求名称}.md`：需求基本信息的 Markdown 文件，包含标题、基本信息、需求描述
-- `{需求名称}.json`：TAPD API 返回的完整需求数据
 
 认证要求：
 - 需要配置环境变量 `TAPD_SIGN`

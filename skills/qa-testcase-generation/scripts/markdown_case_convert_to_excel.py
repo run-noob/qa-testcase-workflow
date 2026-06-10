@@ -202,7 +202,7 @@ def convert_markdown_cases_to_excel(input_dir: str, output_path: str) -> str:
     if not input_path.is_dir():
         raise ValueError(f"输入路径不是有效的目录: {input_dir}")
 
-    md_files = sorted(input_path.glob("*/*.md"))
+    md_files = sorted(input_path.glob("**/*.md"))
     if not md_files:
         raise ValueError(f"目录中没有找到 .md 文件: {input_dir}")
 

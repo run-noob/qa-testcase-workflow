@@ -195,6 +195,8 @@ class WechatDocDownloader:
         根据文档链接和指定格式下载文件
         output_format: 'excel', 'docx', 'pdf', 'auto'(根据链接自动选择)
         """
+        if not "doc.weixin.qq.com" not in url:
+            raise ValueError(f"Unsupported URL: {url}, only support doc.weixin.qq.com")
         # 解析文档 ID 和类型
         if '/sheet/' in url:
             doc_type = 'sheet'
@@ -205,9 +207,8 @@ class WechatDocDownloader:
         elif '/pdf/' in url:
             doc_type = 'pdf'
             doc_id = re.search(r'/pdf/([^?&]+)', url).group(1)
-            
         else:
-            raise ValueError("Unsupported document URL")
+            raise ValueError(f"Unsupported document URL：{url}, only support /sheet/, /doc/, /pdf/")
 
         # 自动模式：sheet -> excel, doc -> docx（默认）
         if output_format == 'auto':
