@@ -195,7 +195,7 @@ class WechatDocDownloader:
         根据文档链接和指定格式下载文件
         output_format: 'excel', 'docx', 'pdf', 'auto'(根据链接自动选择)
         """
-        if not "doc.weixin.qq.com" not in url:
+        if "doc.weixin.qq.com" not in url:
             raise ValueError(f"Unsupported URL: {url}, only support doc.weixin.qq.com")
         # 解析文档 ID 和类型
         if '/sheet/' in url:
