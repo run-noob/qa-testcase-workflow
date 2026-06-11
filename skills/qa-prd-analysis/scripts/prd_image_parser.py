@@ -85,6 +85,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Ignore caches and force regenerate summary and image analysis.",
     )
+    parser.add_argument(
+        "--embed",
+        action="store_true",
+        help="将图片描述嵌入源 Markdown 文件中图片引用的紧后方（幂等，重复运行不重复插入）。",
+    )
     parser.add_argument("--batch-gap", type=int, default=DEFAULT_BATCH_GAP,
         help="Max line gap between adjacent images to include in same batch.")
     parser.add_argument("--max-batch-size", type=int, default=DEFAULT_MAX_BATCH,
@@ -293,7 +298,7 @@ def file_summary_key(prd_text: str, model: str) -> str:
 
 
 def image_analysis_key(
-    image_sha: str,
+    image_path: str,
     local_context_text: str,
     file_summary_text: str,
     model: str,
@@ -302,7 +307,7 @@ def image_analysis_key(
 ) -> str:
     payload = json.dumps(
         {
-            "image_sha": image_sha,
+            "image_path": image_path,
             "local_context_sha": sha256_text(local_context_text),
             "file_summary_sha": sha256_text(file_summary_text),
             "detail_level": detail_level,
@@ -485,7 +490,7 @@ def build_batch_prompt(
     prompt = (
         f"你是QA视觉分析助手，本次分析 PRD 同一区域的 {n} 张图片。\n\n"
         "可以从以下维度思考：\n"
-        "1. 图片类型识别（UI原型、流程图、架构图、截图等）\n"
+        "1. 图片类型识别（UI原型、流程图、架构图、状态机图、参考截图等）\n"
         "2. 整体布局和空间关系（如果是UI原型图），按从上至下、从左到右的顺序描述区域/组件\n"
         "3. UI组件的视觉特征及交互状态\n"
         "4. 图表中的数据关系和流向\n"
@@ -567,10 +572,10 @@ def build_image_prompt(
         "deep": "深入描述，尽可能细化组件、流程与条件关系。",
     }
     heading_text = " > ".join(heading_chain) if heading_chain else "[无章节上下文]"
-    prompt =  (
+    prompt = (
         "你是一名QA需求分析专家。请根据图片内容、PRD文件摘要和图片局部上下文，"
         "输出一段结构化自然语言描述。可以从以下维度思考：\n"
-        "1. 图片类型识别（UI原型、流程图、架构图、截图等）\n"
+        "1. 图片类型识别（UI原型、流程图、状态机图、架构图、参考截图等）\n"
         "2. 整体布局和空间关系(如果是UI原型图），按从上至下，从左到右的顺序描述区域/组件\n"
         "3. UI组件的视觉特征及交互状态\n"
         "4. 图表中的数据关系和流向\n"
@@ -633,6 +638,61 @@ def guess_mime(path: Path) -> str:
     if suffix == ".gif":
         return "image/gif"
     return "image/png"
+
+
+def embed_descriptions_into_markdown(md_path: Path, image_outputs: List[Dict[str, Any]]) -> int:
+    """
+    将图片分析描述嵌入源 Markdown 文件中各图片引用行的紧后方。
+
+    幂等：若该图片引用后已存在 > **[图片描述]** 标记则跳过，不重复插入。
+    按行号从大到小倒序处理，保证插入时前面的行号不漂移。
+
+    Returns:
+        成功嵌入的图片数量。
+    """
+    embed_marker = "> **[图片描述]**"
+
+    content = md_path.read_text(encoding="utf-8")
+    lines = content.splitlines(keepends=True)
+
+    # 按 source_line 从大到小排序（倒序处理保证行号不漂移）
+    sorted_outputs = sorted(image_outputs, key=lambda x: x["source_line"], reverse=True)
+
+    embedded = 0
+    for item in sorted_outputs:
+        line_no = item["source_line"]  # 1-based
+        analysis_text = item.get("analysis_text", "").strip()
+        raw_path = item.get("raw_path", "")
+        image_id = item.get("image_id", "")
+        if not analysis_text:
+            continue
+
+        idx = line_no - 1  # 0-based index
+        if idx < 0 or idx >= len(lines):
+            continue
+
+        # 幂等检查：下一非空行是否已经是嵌入块
+        check_idx = idx + 1
+        while check_idx < len(lines) and lines[check_idx].strip() == "":
+            check_idx += 1
+        if check_idx < len(lines) and lines[check_idx].rstrip("\n").startswith(embed_marker):
+            continue
+
+        # 构建嵌入块（每行加 > 前缀）
+        label = raw_path.split("/")[-1] if raw_path else image_id
+        desc_lines = analysis_text.splitlines()
+        block_lines = [f"\n", f"{embed_marker} `{label}`\n", "\n```text\n"]
+        for dl in desc_lines:
+            block_lines.append(f" {dl}\n" if dl.strip() else "\n")
+        block_lines.append("\n```\n")
+
+        # 插入到图片引用行之后
+        insert_pos = idx + 1
+        lines[insert_pos:insert_pos] = block_lines
+        embedded += 1
+    md_content = "".join(lines)
+    md_path.write_text(md_content, encoding="utf-8")
+    return embedded
 
 
 def build_md_report(
@@ -808,7 +868,7 @@ def main() -> int:
         for ref in valid_group:
             ctx = local_context(prd_text, ref.line_no) if ref.line_no > 0 else "[无局部上下文]"
             i_key = image_analysis_key(
-                image_sha=sha256_file(ref.resolved_path),
+                image_path=ref.raw_path,
                 local_context_text=ctx,
                 file_summary_text=summary,
                 model=args.model,
@@ -835,7 +895,7 @@ def main() -> int:
             still_uncached: List[Tuple[ImageRef, str]] = []  # (ref, b_key)
             for ref in uncached_from_single:
                 b_key = image_analysis_key(
-                    image_sha=sha256_file(ref.resolved_path),
+                    image_path=ref.raw_path,
                     local_context_text=b_ctx,
                     file_summary_text=summary,
                     model=args.model,
@@ -863,7 +923,7 @@ def main() -> int:
                         batch_ctx=b_ctx,
                         batch_refs=refs_to_batch,
                     )
-                    print(f"[BATCH] 批量分析 {len(refs_to_batch)} 张图片: {', '.join(filenames)}")
+                    # print(f"[BATCH] 批量分析 {len(refs_to_batch)} 张图片: {', '.join(filenames)}")
                     try:
                         raw_response = analyze_images_batch(
                             [(r.resolved_path.name, r.resolved_path) for r in refs_to_batch],
@@ -903,7 +963,7 @@ def main() -> int:
             for ref in uncached_from_single:
                 ctx = local_context(prd_text, ref.line_no) if ref.line_no > 0 else "[无局部上下文]"
                 i_key = image_analysis_key(
-                    image_sha=sha256_file(ref.resolved_path),
+                    image_path=ref.raw_path,
                     local_context_text=ctx,
                     file_summary_text=summary,
                     model=args.model,
@@ -1006,16 +1066,22 @@ def main() -> int:
         print(f"[OUT] {md_path}")
     if errors:
         print(f"[OUT] {log_path}")
+
+    if args.embed and image_outputs:
+        n = embed_descriptions_into_markdown(prd_file, image_outputs)
+        print(f"[EMBED] 已将 {n} 张图片描述嵌入源文件: {prd_file}")
+
     return 0
 
 
 if __name__ == "__main__":
-    # import sys
     # sys.argv[1:] = [
     #     "--prd-file",
     #     # "/Users/zengzhihua/Documents/code/testing-wiki/huya-pc-web/prd/web-nav/web顶部栏tab异化图标支持配置.md",
-    #     r"F:\下载\集五卡·瓜分万元大奖\office\集五卡·瓜分万元大奖.md",
-    #     "--image-path",
-    #     "images/1a62d0f8786853ccb5dd563ce6df63451b74a00ff8d6775a4afe4098ee388b4a.png"
+    #     # r"E:\code\testing-wiki\buff\prd\【日麻AI助手】购买会员\【日麻AI助手】购买会员.md",
+    #     r"E:\code\testing-wiki\buff\prd\集五卡·瓜分万元大奖\集五卡·瓜分万元大奖.md",
+    #     "--embed",
+    #     # "--image-path",
+    #     # "images/1a62d0f8786853ccb5dd563ce6df63451b74a00ff8d6775a4afe4098ee388b4a.png"
     # ]
     sys.exit(main())

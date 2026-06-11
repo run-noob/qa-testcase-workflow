@@ -183,11 +183,13 @@ python scripts/doc_convert_to_markdown.py \
 
 ```bash
 python scripts/prd_image_parser.py \
-  --prd-file prd/{feature-dir}/{feature-name}.md
+  --prd-file prd/{feature-dir}/{feature-name}.md \
+  --embed
 ```
 
 常用参数：
 - `--prd-file`：必填，目标 PRD Markdown 文件
+- `--embed`：**推荐开启**，会将图片描述直接嵌入源 Markdown 文件中图片引用的紧后方，无需再单独读取 image-analysis 报告；幂等，重复运行不重复插入
 - `--image-path`：选填，只分析某一张图片时使用，支持相对路径或绝对路径
 - `--detail-level`：图片解析深度，可选 `brief`、`standard`、`deep`
 - `--force-refresh`：忽略缓存，强制重新生成 PRD 摘要和图片分析结果
@@ -195,13 +197,12 @@ python scripts/prd_image_parser.py \
 
 默认产物：
 - `prd/{feature-dir}/output/{feature-name}-image-analysis.md`
-- `prd/{feature-dir}/output/{feature-name}-image-analysis.json`
 - `prd/{feature-dir}/output/.cache/prd-image-parser/` 缓存目录
 
 使用要求：
-- 阅读图片解析 Markdown 结果，把图片中的页面结构、组件信息、交互状态、流程节点、流程分支、限制条件补充进最终分析报告
+- 使用 `--embed` 参数时，图片描述会直接插入到源 Markdown 图片引用行的紧后方（格式为 `> **[图片描述]** {filename}`），**只需读取 PRD 主文件即可获得完整的图文信息，无需额外读取 image-analysis 报告**。
+- 未使用 `--embed` 时，阅读`{feature-name}-image-analysis.md`，把图片中的页面结构、组件信息、交互状态、流程节点、流程分支、限制条件补充进最终分析报告
 - 如果脚本输出了 `[无法识别: xxx]`、错误日志或缺失图片，需要在分析报告中保留不确定性说明，不要自行脑补
-- 如果图片很多(>20张)，选择关键图片使用 `--image-path {image_relative_path}` 进行分析
 
 
 ### Step 3：提取需求核心信息与结构化分析

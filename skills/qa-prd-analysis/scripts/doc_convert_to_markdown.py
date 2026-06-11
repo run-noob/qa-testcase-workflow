@@ -10,6 +10,7 @@ import re
 import sys
 import zipfile
 import shutil
+import subprocess
 from pathlib import Path
 import httpx
 try:
@@ -375,6 +376,11 @@ if __name__ == "__main__":
         action="store_true",
         help="仅检查服务健康状态后退出",
     )
+    parser.add_argument(
+        "--parse-images",
+        action="store_true",
+        help="转换完成后自动调用 prd_image_parser.py 解析图片，并将描述嵌入生成的 Markdown 文件（需配置 OPENAI_API_KEY）",
+    )
 
     args = parser.parse_args()
 
@@ -405,4 +411,14 @@ if __name__ == "__main__":
             print(f"原始文件和转换中间产物zip文件已移动到: {raw_dir}")
         except:
             pass
+
+        if args.parse_images:
+            parser_script = Path(__file__).parent / "prd_image_parser.py"
+            print(f"开始图片解析并嵌入 Markdown: {md_file}")
+            result = subprocess.run(
+                [sys.executable, str(parser_script), "--prd-file", str(md_file), "--embed"],
+                capture_output=False,
+            )
+            if result.returncode != 0:
+                print(f"[WARNING] 图片解析未完全成功（exit code {result.returncode}），Markdown 已生成，可手动运行 prd_image_parser.py --embed 重试")
 
