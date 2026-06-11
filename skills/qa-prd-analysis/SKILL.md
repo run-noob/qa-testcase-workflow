@@ -139,14 +139,14 @@ python scripts/wechat_doc_downloader.py \
 
 ```bash
 python scripts/doc_convert_to_markdown.py \
-  prd/{feature-dir}/{feature-name}.docx \
+  prd/{feature-dir}/{feature-name}.docx
+  --parse-images
 ```
 
 常用参数：
 - `file`：必填，输入文件路径，支持 PDF/DOCX/PPTX/XLSX/图片
-- `--poll-interval`：异步模式轮询间隔秒数（默认: 2）
-- `--max-wait`：异步模式最大等待秒数（默认: 120）
 - `--health`：仅检查服务健康状态后退出
+- `--parse-images`：选填，开启后会将文档中的图片提取并解析，并将图片描述嵌入至markdown文本中，**强烈建议开启**
 
 转换产物：
 - 在源文件同目录下生成 `{源文件名}.zip` 中间产物
