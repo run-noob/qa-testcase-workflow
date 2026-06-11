@@ -18,6 +18,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import sys
 import time
 import urllib.request
@@ -640,12 +641,27 @@ def guess_mime(path: Path) -> str:
     return "image/png"
 
 
-def embed_descriptions_into_markdown(md_path: Path, image_outputs: List[Dict[str, Any]]) -> int:
-    """
-    将图片分析描述嵌入源 Markdown 文件中各图片引用行的紧后方。
+_INLINE_EMBED_MARKER_PREFIX = "<!-- [图片描述]:"
 
-    幂等：若该图片引用后已存在 > **[图片描述]** 标记则跳过，不重复插入。
+
+def embed_descriptions_into_markdown(
+    md_path: Path,
+    image_outputs: List[Dict[str, Any]],
+    raw_dir: Optional[Path] = None,
+) -> int:
+    """
+    将图片分析描述嵌入 Markdown，写入新文件（覆盖 md_path），原始文件归档到 raw_dir。
+
+    - 单图行：在行后插入 blockquote 格式的描述块（原有行为）。
+    - 同行多图（如 HTML 表格行）：在每个 <img> 标签后直接插入内联 HTML 描述，
+      避免所有描述堆叠在行尾、与图片失去对应关系。
+
+    幂等：重复运行不重复插入。
     按行号从大到小倒序处理，保证插入时前面的行号不漂移。
+
+    Args:
+        raw_dir: 若指定，将原始 md_path 移至此目录（首次运行时），再将嵌入后内容
+                 写回 md_path。如 raw_dir 下已存在同名文件（说明已归档过），则跳过移动。
 
     Returns:
         成功嵌入的图片数量。
@@ -655,43 +671,74 @@ def embed_descriptions_into_markdown(md_path: Path, image_outputs: List[Dict[str
     content = md_path.read_text(encoding="utf-8")
     lines = content.splitlines(keepends=True)
 
-    # 按 source_line 从大到小排序（倒序处理保证行号不漂移）
-    sorted_outputs = sorted(image_outputs, key=lambda x: x["source_line"], reverse=True)
+    # 按 source_line 分组（只保留有描述文本的项）
+    line_groups: Dict[int, List[Dict[str, Any]]] = {}
+    for item in image_outputs:
+        if not item.get("analysis_text", "").strip():
+            continue
+        ln = item["source_line"]
+        line_groups.setdefault(ln, []).append(item)
 
     embedded = 0
-    for item in sorted_outputs:
-        line_no = item["source_line"]  # 1-based
-        analysis_text = item.get("analysis_text", "").strip()
-        raw_path = item.get("raw_path", "")
-        image_id = item.get("image_id", "")
-        if not analysis_text:
-            continue
-
-        idx = line_no - 1  # 0-based index
+    for line_no in sorted(line_groups.keys(), reverse=True):
+        items = line_groups[line_no]
+        idx = line_no - 1  # 0-based
         if idx < 0 or idx >= len(lines):
             continue
 
-        # 幂等检查：下一非空行是否已经是嵌入块
-        check_idx = idx + 1
-        while check_idx < len(lines) and lines[check_idx].strip() == "":
-            check_idx += 1
-        if check_idx < len(lines) and lines[check_idx].rstrip("\n").startswith(embed_marker):
-            continue
+        if len(items) == 1:
+            # 单图行：原有逻辑，行后插入 blockquote 块
+            item = items[0]
+            check_idx = idx + 1
+            while check_idx < len(lines) and lines[check_idx].strip() == "":
+                check_idx += 1
+            if check_idx < len(lines) and lines[check_idx].rstrip("\n").startswith(embed_marker):
+                continue
+            raw_path = item.get("raw_path", "")
+            label = raw_path.split("/")[-1] if raw_path else item.get("image_id", "")
+            desc_lines = item["analysis_text"].splitlines()
+            block_lines = ["\n", f"{embed_marker} `{label}`\n", "\n```text\n"]
+            for dl in desc_lines:
+                block_lines.append(f" {dl}\n" if dl.strip() else "\n")
+            block_lines.append("\n```\n")
+            lines[idx + 1:idx + 1] = block_lines
+            embedded += 1
+        else:
+            # 同行多图（如 HTML 表格行）：在每个 <img> 标签后插入内联 HTML 描述
+            line_content = lines[idx]
+            for item in items:
+                raw_path = item.get("raw_path", "")
+                analysis_text = item.get("analysis_text", "").strip()
+                if not raw_path or not analysis_text:
+                    continue
+                label = raw_path.split("/")[-1]
+                marker = f"{_INLINE_EMBED_MARKER_PREFIX}{label} -->"
+                escaped = re.escape(raw_path)
+                img_re = re.compile(
+                    r'<img\b[^>]*?src\s*=\s*["\']' + escaped + r'["\'][^>]*?/?\s*>',
+                    re.IGNORECASE,
+                )
+                m = img_re.search(line_content)
+                if not m:
+                    continue
+                # 幂等检查：img 标签后是否已存在该图片的 marker
+                if marker in line_content[m.end():]:
+                    continue
+                safe_text = analysis_text.replace("\n", "<br/>")
+                desc_html = f'<br/>{marker}<b>[图片描述]</b><br/>{safe_text}'
+                line_content = line_content[:m.end()] + desc_html + line_content[m.end():]
+                embedded += 1
+            lines[idx] = line_content
 
-        # 构建嵌入块（每行加 > 前缀）
-        label = raw_path.split("/")[-1] if raw_path else image_id
-        desc_lines = analysis_text.splitlines()
-        block_lines = [f"\n", f"{embed_marker} `{label}`\n", "\n```text\n"]
-        for dl in desc_lines:
-            block_lines.append(f" {dl}\n" if dl.strip() else "\n")
-        block_lines.append("\n```\n")
+    new_content = "".join(lines)
 
-        # 插入到图片引用行之后
-        insert_pos = idx + 1
-        lines[insert_pos:insert_pos] = block_lines
-        embedded += 1
-    md_content = "".join(lines)
-    md_path.write_text(md_content, encoding="utf-8")
+    if raw_dir is not None:
+        ensure_dir(raw_dir)
+        archive_path = raw_dir / md_path.name
+        if not archive_path.exists():
+            shutil.move(str(md_path), str(archive_path))
+
+    md_path.write_text(new_content, encoding="utf-8")
     return embedded
 
 
@@ -1068,8 +1115,12 @@ def main() -> int:
         print(f"[OUT] {log_path}")
 
     if args.embed and image_outputs:
-        n = embed_descriptions_into_markdown(prd_file, image_outputs)
-        print(f"[EMBED] 已将 {n} 张图片描述嵌入源文件: {prd_file}")
+        raw_dir = prd_file.parent / "raw"
+        n = embed_descriptions_into_markdown(prd_file, image_outputs, raw_dir=raw_dir)
+        archive_path = raw_dir / prd_file.name
+        print(f"[EMBED] 已将 {n} 张图片描述写入: {prd_file}")
+        if archive_path.exists():
+            print(f"[EMBED] 原始文件已归档至: {archive_path}")
 
     return 0
 

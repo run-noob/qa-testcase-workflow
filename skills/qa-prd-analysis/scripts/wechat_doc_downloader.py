@@ -5,8 +5,11 @@ import httpx
 import json
 import re
 import os
+import sys
+import subprocess
 import argparse
 import logging
+from pathlib import Path
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -275,9 +278,54 @@ if __name__ == '__main__':
         default=os.path.join(os.path.expanduser("~"), "Downloads"),
         help="下载文件保存目录（默认: ~/Downloads)",
     )
+    parser.add_argument(
+        "--to-markdown", "-m",
+        action="store_true",
+        help="下载后自动将文档转换为 Markdown 格式（需要 mineru 服务可用）",
+    )
     args = parser.parse_args()
     downloader = WechatDocDownloader()
     download_path = downloader.download(args.doc_url, output_dir=args.output_dir)
+    if args.to_markdown and download_path:
+        _script_dir = os.path.dirname(os.path.abspath(__file__))
+        if _script_dir not in sys.path:
+            sys.path.insert(0, _script_dir)
+        from doc_convert_to_markdown import convert_file, extract_zip
+        dl_path = Path(download_path)
+        print(f"[TO-MARKDOWN] 开始转换: {dl_path}")
+        try:
+            zip_path = convert_file(dl_path)
+            md_file = extract_zip(zip_path)
+            raw_dir = dl_path.parent / "raw"
+            raw_dir.mkdir(exist_ok=True)
+            final_src = raw_dir / dl_path.name
+            try:
+                zip_path.rename(raw_dir / zip_path.name)
+            except Exception:
+                pass
+            try:
+                dl_path.rename(final_src)
+            except Exception:
+                pass
+            images_dir = md_file.parent / "images"
+            # 图片解析并嵌入 Markdown（prd_image_parser 会将原始 md 移到 raw/）
+            parser_script = Path(_script_dir) / "prd_image_parser.py"
+            print(f"[TO-MARKDOWN] 开始图片解析并嵌入 Markdown: {md_file}")
+            parse_result = subprocess.run(
+                [sys.executable, str(parser_script), "--prd-file", str(md_file), "--embed"],
+                capture_output=False,
+            )
+            if parse_result.returncode != 0:
+                print(f"[WARNING] 图片解析未完全成功（exit code {parse_result.returncode}），可手动重试")
+            raw_md = raw_dir / md_file.name
+            print(f"[RESULT] 下载的源文件已归档至: {final_src.resolve()}")
+            if raw_md.exists():
+                print(f"[RESULT] 原始Markdown（未嵌入图片描述）已归档至: {raw_md.resolve()}")
+            print(f"[RESULT] Markdown文件: {md_file.resolve()}")
+            if images_dir.exists():
+                print(f"[RESULT] 图片目录: {images_dir.resolve()}")
+        except Exception as e:
+            print(f"[TO-MARKDOWN] 转换失败: {e}")
     # if download_path:
     #     print(f"download {args.doc_url} successfull, output path: {download_path}")
     # else:
