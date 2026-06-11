@@ -46,7 +46,7 @@ def extract_zip(zip_path: Path) -> Path:
     返回主 markdown 文件的内容。
     """
     extract_dir = zip_path.parent
-    print(f"正在解压结果: {zip_path.name}")
+    print(f"正在解压: {zip_path.name}")
     with zipfile.ZipFile(zip_path, "r") as zf:
         zf.extractall(extract_dir)
     office_dir = extract_dir / zip_path.stem / "office"
@@ -58,10 +58,10 @@ def extract_zip(zip_path: Path) -> Path:
     main_md = extract_dir / f"{zip_path.stem}.md"
     if not main_md.exists():
         raise FileNotFoundError(f"解压后未找到文件: {main_md}")
-    images_dir = extract_dir / "images"
-    print(f"Markdown文件解压到路径: {extract_dir}")
-    if images_dir.exists():
-        print(f"Markdown文件内引用的图片目录：{images_dir}")
+    # images_dir = extract_dir / "images"
+    # print(f"Markdown文件解压到路径: {extract_dir}")
+    # if images_dir.exists():
+    #     print(f"Markdown文件内引用的图片目录：{images_dir}")
     # 格式化 markdown 中的 HTML 块，解决拥挤在一行的问题。
     # format_markdown_html(main_md)  # 弃用，可能会导致图片解析的上下文全部是html标签
     return main_md

@@ -6,7 +6,6 @@ import json
 import re
 import os
 import sys
-import subprocess
 import argparse
 import logging
 from pathlib import Path
@@ -286,6 +285,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     downloader = WechatDocDownloader()
     download_path = downloader.download(args.doc_url, output_dir=args.output_dir)
+
     if args.to_markdown and download_path:
         _script_dir = os.path.dirname(os.path.abspath(__file__))
         if _script_dir not in sys.path:
@@ -309,14 +309,11 @@ if __name__ == '__main__':
                 pass
             images_dir = md_file.parent / "images"
             # 图片解析并嵌入 Markdown（prd_image_parser 会将原始 md 移到 raw/）
-            parser_script = Path(_script_dir) / "prd_image_parser.py"
+            from prd_image_parser import parse_prd_images
             print(f"[TO-MARKDOWN] 开始图片解析并嵌入 Markdown: {md_file}")
-            parse_result = subprocess.run(
-                [sys.executable, str(parser_script), "--prd-file", str(md_file), "--embed"],
-                capture_output=False,
-            )
-            if parse_result.returncode != 0:
-                print(f"[WARNING] 图片解析未完全成功（exit code {parse_result.returncode}），可手动重试")
+            rc = parse_prd_images(md_file, embed=True, emit_md=False)
+            if rc != 0:
+                print(f"[WARNING] 图片解析未完全成功（exit code {rc}），可手动重试")
             raw_md = raw_dir / md_file.name
             print(f"[RESULT] 下载的源文件已归档至: {final_src.resolve()}")
             if raw_md.exists():

@@ -92,11 +92,11 @@ def parse_args() -> argparse.Namespace:
         help="将图片描述嵌入源 Markdown 文件中图片引用的紧后方（幂等，重复运行不重复插入）。",
     )
     parser.add_argument("--batch-gap", type=int, default=DEFAULT_BATCH_GAP,
-        help="Max line gap between adjacent images to include in same batch.")
+                        help="Max line gap between adjacent images to include in same batch.")
     parser.add_argument("--max-batch-size", type=int, default=DEFAULT_MAX_BATCH,
-        help="Max images per batch call.")
+                        help="Max images per batch call.")
     parser.add_argument("--no-batch", action="store_true",
-        help="Disable batching, process images one by one.")
+                        help="Disable batching, process images one by one.")
     return parser.parse_args()
 
 
@@ -803,21 +803,44 @@ def _append_output(
     image_outputs.append(out_item)
 
 
-def main() -> int:
-    args = parse_args()
-    if not args.emit_json and not args.emit_md:
-        args.emit_json = False
-        args.emit_md = True
+def parse_prd_images(
+    prd_file: Path,
+    *,
+    output_dir: Optional[Path] = None,
+    image_path: Optional[str] = None,
+    model: str = "google/gemini-3-flash-preview",
+    max_images: int = DEFAULT_MAX_IMAGES,
+    detail_level: str = "standard",
+    retry: int = DEFAULT_RETRY,
+    on_error: str = "skip",
+    timeout: int = DEFAULT_TIMEOUT,
+    dry_run: bool = False,
+    include_image_snippet: bool = False,
+    emit_json: bool = False,
+    emit_md: bool = True,
+    force_refresh: bool = False,
+    embed: bool = False,
+    batch_gap: int = DEFAULT_BATCH_GAP,
+    max_batch_size: int = DEFAULT_MAX_BATCH,
+    no_batch: bool = False,
+) -> int:
+    """
+    解析 PRD Markdown 中的图片，生成文字描述，可选嵌入源文件。
 
-    prd_file = Path(args.prd_file).resolve()
+    可作为库函数直接调用，也可通过 main() / CLI 使用。
+
+    Returns:
+        0 表示成功，1 表示出现不可恢复错误。
+    """
+    prd_file = prd_file.resolve()
     feature_name = prd_file.stem
     if not prd_file.exists():
         print(f"[ERROR] PRD file not found: {prd_file}", file=sys.stderr)
         return 1
-    if not args.output_dir:
+    if output_dir is None:
         output_dir = prd_file.parent.resolve()
     else:
-        output_dir = Path(args.output_dir).resolve()
+        output_dir = output_dir.resolve()
     ensure_dir(output_dir)
     cache_dir = output_dir / ".cache" / "prd-image-parser"
     ensure_dir(cache_dir)
@@ -829,8 +852,8 @@ def main() -> int:
     errors: List[str] = []
     selected: List[ImageRef] = []
 
-    if args.image_path:
-        target = resolve_single_image_path(prd_dir, args.image_path, Path.cwd())
+    if image_path:
+        target = resolve_single_image_path(prd_dir, image_path, Path.cwd())
         matched = [r for r in refs if r.resolved_path == target]
         if matched:
             selected = [matched[0]]
@@ -843,40 +866,40 @@ def main() -> int:
                 ImageRef(
                     image_id="IMG-001",
                     alt="",
-                    raw_path=args.image_path,
+                    raw_path=image_path,
                     resolved_path=target,
                     line_no=1,
                     raw_line="",
                 )
             ]
     else:
-        selected = refs[: args.max_images]
+        selected = refs[:max_images]
 
     if not selected:
         raise ValueError("No images found to parse.")
 
     summary = ""
-    summary_key = file_summary_key(prd_text, args.model)
+    summary_key = file_summary_key(prd_text, model)
     summary_data_path, _ = cache_paths(cache_dir, summary_key, "file-summary")
-    if summary_data_path.exists() and not args.force_refresh:
+    if summary_data_path.exists() and not force_refresh:
         summary_payload = read_json(summary_data_path)
         summary = summary_payload["summary_text"]
-    elif args.dry_run:
+    elif dry_run:
         summary = "[dry-run] PRD summary skipped."
     else:
         summary = generate_prd_summary(
             prd_text=prd_text,
-            model=args.model,
-            timeout=args.timeout,
-            retry=args.retry,
-            on_error=args.on_error,
+            model=model,
+            timeout=timeout,
+            retry=retry,
+            on_error=on_error,
         )
         write_json(
             summary_data_path,
             {
                 "key": summary_key,
                 "summary_prompt_version": SUMMARY_PROMPT_VERSION,
-                "model": args.model,
+                "model": model,
                 "created_at": now_iso(),
                 "summary_text": summary,
             },
@@ -886,10 +909,10 @@ def main() -> int:
     success = 0
     failed = 0
 
-    if args.no_batch:
+    if no_batch:
         groups: List[List[ImageRef]] = [[ref] for ref in selected]
     else:
-        groups = group_images_by_proximity(selected, args.batch_gap, args.max_batch_size)
+        groups = group_images_by_proximity(selected, batch_gap, max_batch_size)
 
     for group in groups:
         # Separate existing vs missing files
@@ -899,7 +922,7 @@ def main() -> int:
                 msg = f"图片不存在: {ref.resolved_path}"
                 errors.append(msg)
                 failed += 1
-                if args.on_error == "abort":
+                if on_error == "abort":
                     print(f"[ERROR] {msg}", file=sys.stderr)
                     return 1
             else:
@@ -918,11 +941,11 @@ def main() -> int:
                 image_path=ref.raw_path,
                 local_context_text=ctx,
                 file_summary_text=summary,
-                model=args.model,
-                detail_level=args.detail_level,
+                model=model,
+                detail_level=detail_level,
             )
             img_cache_path, _ = cache_paths(cache_dir, i_key, "image")
-            if img_cache_path.exists() and not args.force_refresh:
+            if img_cache_path.exists() and not force_refresh:
                 group_analysis[str(ref.resolved_path)] = read_json(img_cache_path)["analysis_text"]
             else:
                 uncached_from_single.append(ref)
@@ -930,11 +953,11 @@ def main() -> int:
         if not uncached_from_single:
             # All cached via single-image keys
             for ref in valid_group:
-                _append_output(ref, group_analysis[str(ref.resolved_path)], args.include_image_snippet, image_outputs)
+                _append_output(ref, group_analysis[str(ref.resolved_path)], include_image_snippet, image_outputs)
                 success += 1
             continue
 
-        use_batch = len(uncached_from_single) >= 2 and not args.no_batch
+        use_batch = len(uncached_from_single) >= 2 and not no_batch
 
         if use_batch:
             # Pass 2: check batch cache for each uncached image
@@ -945,18 +968,18 @@ def main() -> int:
                     image_path=ref.raw_path,
                     local_context_text=b_ctx,
                     file_summary_text=summary,
-                    model=args.model,
-                    detail_level=args.detail_level,
+                    model=model,
+                    detail_level=detail_level,
                     prompt_version=BATCH_PROMPT_VERSION,
                 )
                 b_cache_path, _ = cache_paths(cache_dir, b_key, "image")
-                if b_cache_path.exists() and not args.force_refresh:
+                if b_cache_path.exists() and not force_refresh:
                     group_analysis[str(ref.resolved_path)] = read_json(b_cache_path)["analysis_text"]
                 else:
                     still_uncached.append((ref, b_key))
 
             if still_uncached:
-                if args.dry_run:
+                if dry_run:
                     for ref, _ in still_uncached:
                         group_analysis[str(ref.resolved_path)] = "[dry-run] image analysis skipped."
                 else:
@@ -964,21 +987,20 @@ def main() -> int:
                     filenames = [r.resolved_path.name for r in refs_to_batch]
                     heading = heading_chain_until_line(prd_text, refs_to_batch[0].line_no)
                     batch_prompt = build_batch_prompt(
-                        detail_level=args.detail_level,
+                        detail_level=detail_level,
                         file_summary=summary,
                         heading_chain=heading,
                         batch_ctx=b_ctx,
                         batch_refs=refs_to_batch,
                     )
-                    # print(f"[BATCH] 批量分析 {len(refs_to_batch)} 张图片: {', '.join(filenames)}")
                     try:
                         raw_response = analyze_images_batch(
                             [(r.resolved_path.name, r.resolved_path) for r in refs_to_batch],
                             batch_prompt,
-                            model=args.model,
-                            timeout=args.timeout,
-                            retry=args.retry,
-                            on_error=args.on_error,
+                            model=model,
+                            timeout=timeout,
+                            retry=retry,
+                            on_error=on_error,
                         )
                         per_image = parse_batch_response(raw_response or "", filenames)
                         for ref, b_key in still_uncached:
@@ -989,8 +1011,8 @@ def main() -> int:
                                 write_json(b_cache_path, {
                                     "key": b_key,
                                     "image_prompt_version": BATCH_PROMPT_VERSION,
-                                    "model": args.model,
-                                    "detail_level": args.detail_level,
+                                    "model": model,
+                                    "detail_level": detail_level,
                                     "created_at": now_iso(),
                                     "image_path": str(ref.resolved_path),
                                     "raw_path": str(ref.raw_path),
@@ -1002,7 +1024,7 @@ def main() -> int:
                         errors.append(msg)
                         for ref, _ in still_uncached:
                             group_analysis[str(ref.resolved_path)] = None
-                        if args.on_error == "abort":
+                        if on_error == "abort":
                             print(f"[ERROR] {msg}", file=sys.stderr)
                             return 1
         else:
@@ -1013,36 +1035,36 @@ def main() -> int:
                     image_path=ref.raw_path,
                     local_context_text=ctx,
                     file_summary_text=summary,
-                    model=args.model,
-                    detail_level=args.detail_level,
+                    model=model,
+                    detail_level=detail_level,
                 )
                 img_cache_path, _ = cache_paths(cache_dir, i_key, "image")
                 heading = heading_chain_until_line(prd_text, ref.line_no)
                 prompt_text = build_image_prompt(
-                    detail_level=args.detail_level,
+                    detail_level=detail_level,
                     file_summary=summary,
                     heading_chain=heading,
                     local_ctx=ctx,
                     image_alt=ref.alt,
                 )
-                if args.dry_run:
+                if dry_run:
                     group_analysis[str(ref.resolved_path)] = "[dry-run] image analysis skipped."
                 else:
                     try:
                         analysis_text = analyze_image(
                             image_path=ref.resolved_path,
                             prompt_text=prompt_text,
-                            model=args.model,
-                            timeout=args.timeout,
-                            retry=args.retry,
-                            on_error=args.on_error,
+                            model=model,
+                            timeout=timeout,
+                            retry=retry,
+                            on_error=on_error,
                         )
                         if analysis_text:
                             write_json(img_cache_path, {
                                 "key": i_key,
                                 "image_prompt_version": IMAGE_PROMPT_VERSION,
-                                "model": args.model,
-                                "detail_level": args.detail_level,
+                                "model": model,
+                                "detail_level": detail_level,
                                 "created_at": now_iso(),
                                 "image_path": str(ref.resolved_path),
                                 "raw_path": str(ref.raw_path),
@@ -1053,7 +1075,7 @@ def main() -> int:
                         msg = f"{ref.resolved_path.name} 解析失败: {e}"
                         errors.append(msg)
                         group_analysis[str(ref.resolved_path)] = None
-                        if args.on_error == "abort":
+                        if on_error == "abort":
                             print(f"[ERROR] {msg}", file=sys.stderr)
                             return 1
 
@@ -1064,16 +1086,16 @@ def main() -> int:
             if analysis_text is None:
                 failed += 1
                 continue
-            _append_output(ref, analysis_text, args.include_image_snippet, image_outputs)
+            _append_output(ref, analysis_text, include_image_snippet, image_outputs)
             success += 1
 
-    mode = "single-image" if args.image_path else "full-prd"
+    mode = "single-image" if image_path else "full-prd"
     result = {
         "meta": {
             "prd_file": str(prd_file),
             "feature_name": feature_name,
             "generated_at": now_iso(),
-            "model": args.model,
+            "model": model,
             "mode": mode,
         },
         "images": image_outputs,
@@ -1089,14 +1111,14 @@ def main() -> int:
     md_path = output_dir / f"{feature_name}-image-analysis.md"
     log_path = output_dir / f"{feature_name}-image-analysis-errors.log"
 
-    if args.emit_json:
+    if emit_json:
         write_json(json_path, result)
-    if args.emit_md:
+    if emit_md:
         md_text = build_md_report(
             meta=result["meta"],
             images=result["images"],
             errors=result["errors"],
-            include_image_snippet=args.include_image_snippet,
+            include_image_snippet=include_image_snippet,
         )
         md_path.write_text(md_text, encoding="utf-8")
         print(md_text)
@@ -1105,16 +1127,12 @@ def main() -> int:
 
     print(
         f"[DONE] mode={mode} total={len(selected)} success={success} failed={failed} "
-        f"json={args.emit_json} md={args.emit_md}"
+        f"json={emit_json} md={emit_md}"
     )
-    if args.emit_json:
-        print(f"[OUT] {json_path}")
-    if args.emit_md:
-        print(f"[OUT] {md_path}")
     if errors:
         print(f"[OUT] {log_path}")
 
-    if args.embed and image_outputs:
+    if embed and image_outputs:
         raw_dir = prd_file.parent / "raw"
         n = embed_descriptions_into_markdown(prd_file, image_outputs, raw_dir=raw_dir)
         archive_path = raw_dir / prd_file.name
@@ -1123,6 +1141,34 @@ def main() -> int:
             print(f"[EMBED] 原始文件已归档至: {archive_path}")
 
     return 0
+
+
+def main() -> int:
+    args = parse_args()
+    emit_md = args.emit_md
+    emit_json = args.emit_json
+    if not emit_json and not emit_md:
+        emit_md = True
+    return parse_prd_images(
+        prd_file=Path(args.prd_file),
+        output_dir=Path(args.output_dir) if args.output_dir else None,
+        image_path=args.image_path,
+        model=args.model,
+        max_images=args.max_images,
+        detail_level=args.detail_level,
+        retry=args.retry,
+        on_error=args.on_error,
+        timeout=args.timeout,
+        dry_run=args.dry_run,
+        include_image_snippet=args.include_image_snippet,
+        emit_json=emit_json,
+        emit_md=emit_md,
+        force_refresh=args.force_refresh,
+        embed=args.embed,
+        batch_gap=args.batch_gap,
+        max_batch_size=args.max_batch_size,
+        no_batch=args.no_batch,
+    )
 
 
 if __name__ == "__main__":
