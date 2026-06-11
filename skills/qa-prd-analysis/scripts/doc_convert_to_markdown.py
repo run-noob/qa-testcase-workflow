@@ -46,13 +46,20 @@ def extract_zip(zip_path: Path) -> Path:
     返回主 markdown 文件的内容。
     """
     extract_dir = zip_path.parent
-    print(f"正在解压: {zip_path.name}")
+    print(f"[TO-MARKDOWN] 正在解压: {zip_path.name}")
     with zipfile.ZipFile(zip_path, "r") as zf:
         zf.extractall(extract_dir)
     office_dir = extract_dir / zip_path.stem / "office"
     if not office_dir.exists():
         raise FileNotFoundError(f"解压后目录为空")
     for name in os.listdir(office_dir):
+        # 判断目标路径是否存在，如果存在则删除（可能是之前解压失败残留的）
+        target_path = extract_dir / name
+        if target_path.exists():
+            if target_path.is_file():
+                target_path.unlink()
+            else:
+                shutil.rmtree(target_path)
         shutil.move(os.path.join(office_dir, name), extract_dir)
     shutil.rmtree(office_dir.parent)
     main_md = extract_dir / f"{zip_path.stem}.md"

@@ -1,7 +1,7 @@
 {
   "name": "qa-testcase-workflow",
   "description": "测试工程师测试用例管理的完整工作流自动化，支持 PRD 分析、变更分析、用例生成、评审和归档",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "author": {
     "name": "zengzhihua",
     "email": "1036181341@qq.com"

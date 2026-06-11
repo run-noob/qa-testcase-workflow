@@ -110,15 +110,17 @@ python scripts/get_prd_detail_from_tapd.py \
 python scripts/wechat_doc_downloader.py \
   "https://doc.weixin.qq.com/sheet/e3_AbYA7wb9AAYCNoSNuQCISQ0aTj0ej" \
   --output-dir prd/{feature-dir}
+  --to-markdown
 ```
 
 常用参数：
 - `doc_url`：必填，腾讯文档 URL，支持 `sheet`、`doc`、`pdf` 三种类型
 - `--output-dir` / `-o`：选填，下载文件保存目录，默认为当前目录
+- `--to-markdown` / `-m`: 选填，**强烈建议开启**，下载完成后会直接转为markdown格式，更方便读取
 
 注意事项：
 - 脚本依赖内置 Cookie 完成认证，若 Cookie 失效或需要验证码，下载将失败，立即终止流程，通知用户手动下载该文档放到需求目录内
-- 下载成功后会在指定目录生成对应文件（Excel/Docx/PDF），并在控制台输出本地文件路径
+- 下载成功后会在指定目录生成对应文件（Excel/Docx/PDF），并在控制台输出本地文件路径。若有`--to-markdown`参数，则会生成对应的.md文件，并将原始文件归档至`raw/`目录下
 - 如果 PRD 中同时存在图片和在线文档链接，优先并行执行图片解析脚本和文档下载脚本，再汇总分析
 
 #### 所有PRD统一转为Markdown格式
@@ -189,7 +191,7 @@ python scripts/prd_image_parser.py \
 
 常用参数：
 - `--prd-file`：必填，目标 PRD Markdown 文件
-- `--embed`：**推荐开启**，会将图片描述直接嵌入源 Markdown 文件中图片引用的紧后方，无需再单独读取 image-analysis 报告；幂等，重复运行不重复插入
+- `--embed`：**强烈推荐开启**，会将图片描述直接嵌入源 Markdown 文件中图片引用的紧后方，无需再单独读取image-analysis 报告；幂等，重复运行不重复插入
 - `--image-path`：选填，只分析某一张图片时使用，支持相对路径或绝对路径
 - `--detail-level`：图片解析深度，可选 `brief`、`standard`、`deep`
 - `--force-refresh`：忽略缓存，强制重新生成 PRD 摘要和图片分析结果
@@ -198,10 +200,9 @@ python scripts/prd_image_parser.py \
 默认产物：
 - `prd/{feature-dir}/output/{feature-name}-image-analysis.md`
 - `prd/{feature-dir}/output/.cache/prd-image-parser/` 缓存目录
-
+- `prd/{feature-dir}/{feature-name}-image-desc-embedded.md` 有`--embed`参数时生成
 使用要求：
-- 使用 `--embed` 参数时，图片描述会直接插入到源 Markdown 图片引用行的紧后方（格式为 `> **[图片描述]** {filename}`），**只需读取 PRD 主文件即可获得完整的图文信息，无需额外读取 image-analysis 报告**。
-- 未使用 `--embed` 时，阅读`{feature-name}-image-analysis.md`，把图片中的页面结构、组件信息、交互状态、流程节点、流程分支、限制条件补充进最终分析报告
+- 使用 `--embed` 参数时，图片描述会直接插入到源 Markdown 图片引用行的紧后方（格式为 `**[图片描述]** {filename}`），**只需读取嵌入图片描述后的`{feature-name}-image-desc-embedded.md`文件，无需额外读取 image-analysis 报告**。
 - 如果脚本输出了 `[无法识别: xxx]`、错误日志或缺失图片，需要在分析报告中保留不确定性说明，不要自行脑补
 
 

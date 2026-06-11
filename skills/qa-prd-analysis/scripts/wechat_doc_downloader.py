@@ -284,15 +284,19 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
     downloader = WechatDocDownloader()
+    print(f"开始下载文档，URL: {args.doc_url}")
     download_path = downloader.download(args.doc_url, output_dir=args.output_dir)
-
+    if not download_path:
+        print("下载失败，请检查 URL 是否正确，或者是否需要更新 cookie 等。")
+        sys.exit(1)
+    print(f"下载完成，文件路径: {download_path}")
     if args.to_markdown and download_path:
         _script_dir = os.path.dirname(os.path.abspath(__file__))
         if _script_dir not in sys.path:
             sys.path.insert(0, _script_dir)
         from doc_convert_to_markdown import convert_file, extract_zip
         dl_path = Path(download_path)
-        print(f"[TO-MARKDOWN] 开始转换: {dl_path}")
+        print(f"[TO-MARKDOWN] 开始转换文档为 Markdown...")
         try:
             zip_path = convert_file(dl_path)
             md_file = extract_zip(zip_path)
@@ -305,22 +309,24 @@ if __name__ == '__main__':
                 pass
             try:
                 dl_path.rename(final_src)
+                print(f"[RESULT] 下载的源文件已归档至: {final_src.resolve()}")
             except Exception:
                 pass
             images_dir = md_file.parent / "images"
             # 图片解析并嵌入 Markdown（prd_image_parser 会将原始 md 移到 raw/）
             from prd_image_parser import parse_prd_images
-            print(f"[TO-MARKDOWN] 开始图片解析并嵌入 Markdown: {md_file}")
-            rc = parse_prd_images(md_file, embed=True, emit_md=False)
-            if rc != 0:
-                print(f"[WARNING] 图片解析未完全成功（exit code {rc}），可手动重试")
-            raw_md = raw_dir / md_file.name
-            print(f"[RESULT] 下载的源文件已归档至: {final_src.resolve()}")
-            if raw_md.exists():
-                print(f"[RESULT] 原始Markdown（未嵌入图片描述）已归档至: {raw_md.resolve()}")
-            print(f"[RESULT] Markdown文件: {md_file.resolve()}")
+            print(f"[TO-MARKDOWN] 开始解析文档内图片并将图片描述嵌入Markdown")
+            embedded_flag = True
+            parsed_md_path = parse_prd_images(md_file, embed=True, emit_md=False)
+            if "embedded" not in str(parsed_md_path):
+                print(f"[WARNING] 图片解析未完全成功，可手动重试")
+                embedded_flag = False
             if images_dir.exists():
-                print(f"[RESULT] 图片目录: {images_dir.resolve()}")
+                print(f"[RESULT] 文档内的图片目录: {images_dir.resolve()}")
+            final_msg = f"[RESULT] 预处理(转markdown+解析图片)后的Markdown文件: {parsed_md_path.resolve()}"
+            if embedded_flag:
+                final_msg += "图片已解析并嵌入Markdown，无需额外操作"
+            print(final_msg)
         except Exception as e:
             print(f"[TO-MARKDOWN] 转换失败: {e}")
     # if download_path:

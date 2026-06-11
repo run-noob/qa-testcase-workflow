@@ -123,12 +123,14 @@ def load_text(path: Path) -> str:
 def ensure_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
+
 def get_download_dir(prd_dir: Path):
     return prd_dir / "downloaded-images"
 
+
 def extract_markdown_images(prd_text: str, prd_dir: Path) -> List[ImageRef]:
     # 模式定义（注意：字符类 [^>] 和 [^)] 默认匹配换行符，无需 DOTALL）
-    md_pattern = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
+    md_pattern = re.compile(r"\[([^\]]*)\]\(([^)]+)\)")
     html_pattern = re.compile(r"<img\s+([^>]*?)\s*/?\s*>", re.IGNORECASE)
 
     refs: List[ImageRef] = []
@@ -300,7 +302,6 @@ def file_summary_key(prd_text: str, model: str) -> str:
 
 def image_analysis_key(
     image_path: str,
-    local_context_text: str,
     file_summary_text: str,
     model: str,
     detail_level: str,
@@ -309,7 +310,6 @@ def image_analysis_key(
     payload = json.dumps(
         {
             "image_path": image_path,
-            "local_context_sha": sha256_text(local_context_text),
             "file_summary_sha": sha256_text(file_summary_text),
             "detail_level": detail_level,
             "image_prompt_version": prompt_version,
@@ -641,14 +641,10 @@ def guess_mime(path: Path) -> str:
     return "image/png"
 
 
-_INLINE_EMBED_MARKER_PREFIX = "<!-- [图片描述]:"
-
-
 def embed_descriptions_into_markdown(
     md_path: Path,
     image_outputs: List[Dict[str, Any]],
-    raw_dir: Optional[Path] = None,
-) -> int:
+) -> Path:
     """
     将图片分析描述嵌入 Markdown，写入新文件（覆盖 md_path），原始文件归档到 raw_dir。
 
@@ -660,8 +656,8 @@ def embed_descriptions_into_markdown(
     按行号从大到小倒序处理，保证插入时前面的行号不漂移。
 
     Args:
-        raw_dir: 若指定，将原始 md_path 移至此目录（首次运行时），再将嵌入后内容
-                 写回 md_path。如 raw_dir 下已存在同名文件（说明已归档过），则跳过移动。
+        image_outputs: 图片描述结果
+        md_path: 原始markdown文件
 
     Returns:
         成功嵌入的图片数量。
@@ -712,7 +708,8 @@ def embed_descriptions_into_markdown(
                 if not raw_path or not analysis_text:
                     continue
                 label = raw_path.split("/")[-1]
-                marker = f"{_INLINE_EMBED_MARKER_PREFIX}{label} -->"
+                _inline_embed_marker = "[图片描述]:"
+                marker = f"{_inline_embed_marker} {label}"
                 escaped = re.escape(raw_path)
                 img_re = re.compile(
                     r'<img\b[^>]*?src\s*=\s*["\']' + escaped + r'["\'][^>]*?/?\s*>',
@@ -725,21 +722,15 @@ def embed_descriptions_into_markdown(
                 if marker in line_content[m.end():]:
                     continue
                 safe_text = analysis_text.replace("\n", "<br/>")
-                desc_html = f'<br/>{marker}<b>[图片描述]</b><br/>{safe_text}'
+                desc_html = f'<br/>---<b>{marker}</b><br/><br/>{safe_text}<br/>---'
                 line_content = line_content[:m.end()] + desc_html + line_content[m.end():]
                 embedded += 1
             lines[idx] = line_content
 
     new_content = "".join(lines)
-
-    if raw_dir is not None:
-        ensure_dir(raw_dir)
-        archive_path = raw_dir / md_path.name
-        if not archive_path.exists():
-            shutil.move(str(md_path), str(archive_path))
-
-    md_path.write_text(new_content, encoding="utf-8")
-    return embedded
+    new_md_path = md_path.with_stem(md_path.stem + "-image-desc-embedded")
+    new_md_path.write_text(new_content, encoding="utf-8")
+    return new_md_path
 
 
 def build_md_report(
@@ -823,20 +814,16 @@ def parse_prd_images(
     batch_gap: int = DEFAULT_BATCH_GAP,
     max_batch_size: int = DEFAULT_MAX_BATCH,
     no_batch: bool = False,
-) -> int:
+) -> Path | None:
     """
     解析 PRD Markdown 中的图片，生成文字描述，可选嵌入源文件。
-
     可作为库函数直接调用，也可通过 main() / CLI 使用。
-
-    Returns:
-        0 表示成功，1 表示出现不可恢复错误。
     """
     prd_file = prd_file.resolve()
     feature_name = prd_file.stem
     if not prd_file.exists():
         print(f"[ERROR] PRD file not found: {prd_file}", file=sys.stderr)
-        return 1
+        return
     if output_dir is None:
         output_dir = prd_file.parent.resolve()
     else:
@@ -860,7 +847,7 @@ def parse_prd_images(
         else:
             if not target.exists():
                 print(f"[ERROR] Single image not found: {target}", file=sys.stderr)
-                return 1
+                return
             errors.append(f"单图模式: 图片未在PRD中找到引用，将降级使用文件级上下文。path={target}")
             selected = [
                 ImageRef(
@@ -936,10 +923,9 @@ def parse_prd_images(
         group_analysis: Dict[str, Optional[str]] = {}  # str(resolved_path) -> analysis_text
 
         for ref in valid_group:
-            ctx = local_context(prd_text, ref.line_no) if ref.line_no > 0 else "[无局部上下文]"
+            # ctx = local_context(prd_text, ref.line_no) if ref.line_no > 0 else "[无局部上下文]"
             i_key = image_analysis_key(
                 image_path=ref.raw_path,
-                local_context_text=ctx,
                 file_summary_text=summary,
                 model=model,
                 detail_level=detail_level,
@@ -966,7 +952,6 @@ def parse_prd_images(
             for ref in uncached_from_single:
                 b_key = image_analysis_key(
                     image_path=ref.raw_path,
-                    local_context_text=b_ctx,
                     file_summary_text=summary,
                     model=model,
                     detail_level=detail_level,
@@ -1033,7 +1018,6 @@ def parse_prd_images(
                 ctx = local_context(prd_text, ref.line_no) if ref.line_no > 0 else "[无局部上下文]"
                 i_key = image_analysis_key(
                     image_path=ref.raw_path,
-                    local_context_text=ctx,
                     file_summary_text=summary,
                     model=model,
                     detail_level=detail_level,
@@ -1113,6 +1097,8 @@ def parse_prd_images(
 
     if emit_json:
         write_json(json_path, result)
+        if not embed:
+            print(f"文件内图片解析完成，JSON结果文件在：{json_path}")
     if emit_md:
         md_text = build_md_report(
             meta=result["meta"],
@@ -1121,26 +1107,17 @@ def parse_prd_images(
             include_image_snippet=include_image_snippet,
         )
         md_path.write_text(md_text, encoding="utf-8")
-        print(md_text)
+        if not embed:
+            print(f"文件内图片解析完成，结果文件在：{md_path}")
     if errors:
         log_path.write_text("\n".join(errors) + "\n", encoding="utf-8")
-
-    print(
-        f"[DONE] mode={mode} total={len(selected)} success={success} failed={failed} "
-        f"json={emit_json} md={emit_md}"
-    )
-    if errors:
-        print(f"[OUT] {log_path}")
+        print(f"ERROR: {log_path}")
 
     if embed and image_outputs:
-        raw_dir = prd_file.parent / "raw"
-        n = embed_descriptions_into_markdown(prd_file, image_outputs, raw_dir=raw_dir)
-        archive_path = raw_dir / prd_file.name
-        print(f"[EMBED] 已将 {n} 张图片描述写入: {prd_file}")
-        if archive_path.exists():
-            print(f"[EMBED] 原始文件已归档至: {archive_path}")
-
-    return 0
+        new_md_path = embed_descriptions_into_markdown(prd_file, image_outputs)
+        print(f"[EMBED] 已将图片描述嵌入正文内，嵌入后的文件路径： {new_md_path}")
+        return new_md_path
+    return md_path
 
 
 def main() -> int:
@@ -1149,26 +1126,30 @@ def main() -> int:
     emit_json = args.emit_json
     if not emit_json and not emit_md:
         emit_md = True
-    return parse_prd_images(
-        prd_file=Path(args.prd_file),
-        output_dir=Path(args.output_dir) if args.output_dir else None,
-        image_path=args.image_path,
-        model=args.model,
-        max_images=args.max_images,
-        detail_level=args.detail_level,
-        retry=args.retry,
-        on_error=args.on_error,
-        timeout=args.timeout,
-        dry_run=args.dry_run,
-        include_image_snippet=args.include_image_snippet,
-        emit_json=emit_json,
-        emit_md=emit_md,
-        force_refresh=args.force_refresh,
-        embed=args.embed,
-        batch_gap=args.batch_gap,
-        max_batch_size=args.max_batch_size,
-        no_batch=args.no_batch,
-    )
+    try:
+        parse_prd_images(
+            prd_file=Path(args.prd_file),
+            output_dir=Path(args.output_dir) if args.output_dir else None,
+            image_path=args.image_path,
+            model=args.model,
+            max_images=args.max_images,
+            detail_level=args.detail_level,
+            retry=args.retry,
+            on_error=args.on_error,
+            timeout=args.timeout,
+            dry_run=args.dry_run,
+            include_image_snippet=args.include_image_snippet,
+            emit_json=emit_json,
+            emit_md=emit_md,
+            force_refresh=args.force_refresh,
+            embed=args.embed,
+            batch_gap=args.batch_gap,
+            max_batch_size=args.max_batch_size,
+            no_batch=args.no_batch,
+        )
+        return 0
+    except:
+        return 1
 
 
 if __name__ == "__main__":
