@@ -101,7 +101,7 @@ description: QA测试用例工作流总控，自动编排执行PRD分析、用�
 
 **触发条件**：step1 产物不存在，或用户指定重新执行。
 
-**执行**：调用 `qa-prd-analysis` skill，传入当前 `feature-dir`。
+**执行**：读取 `skills/qa-prd-analysis/SKILL.md`，按照其执行流程（Step 1～5）完成 PRD 分析，产出 `prd/{feature-dir}/output/{feature-name}-analysis.md` 及 `*-clarifications.md`（如有澄清项）。
 
 **完成后检查**：
 - 验证 `prd/{feature-dir}/output/*-analysis.md` 已产出。
@@ -114,9 +114,9 @@ description: QA测试用例工作流总控，自动编排执行PRD分析、用�
 
 **触发条件**：step2 产物不存在或未全部完成，或用户指定重新执行。
 
-**执行**：调用 `qa-testcase-generation` skill，传入当前 `feature-dir`。
+**执行**：读取 `skills/qa-testcase-generation/SKILL.md`，按照其执行流程完成用例生成。
 
-**子 Skill 前置条件由该 Skill 自行处理**（若分析报告不存在，它会自动调用 step1，此时总控需感知到 step1 被重新触发，补充更新进度状态）。
+**若分析报告不存在**：生成 Skill 的前置条件会自行完成 PRD 分析后再继续生成用例，总控需感知到 step1 的产物也在此阶段被产出，同步将 Step 1 标记为 `[✓]`。
 
 **完成后检查**：
 - 验证 `_progress.md` 全部模块为"已完成"状态。
@@ -129,7 +129,7 @@ description: QA测试用例工作流总控，自动编排执行PRD分析、用�
 
 **触发条件**：step3 产物不存在，或用户指定重新执行。
 
-**执行**：调用 `qa-testcase-review` skill，传入当前 `feature-dir`。
+**执行**：读取 `skills/qa-testcase-review/SKILL.md`，按照其评审流程对用例进行多维度评审（完整性 / 准确性 / 规范性 / 设计质量），产出 `review-report.md`。
 
 **完成后检查**：
 - 验证 `review-report.md` 已产出。
@@ -148,9 +148,9 @@ description: QA测试用例工作流总控，自动编排执行PRD分析、用�
 
 **触发条件**：step4 尚未执行（archive 不存在），且未使用 `--skip-merge`，且评审通过。
 
-**执行**：调用 `qa-testcase-merge` skill，传入当前 `feature-dir`。
+**执行**：读取 `skills/qa-testcase-merge/SKILL.md`，按照其流程产出合并计划、等待用户确认后完成合并归档。
 
-**注意**：`qa-testcase-merge` 会自行产出合并计划并等待用户确认，总控无需重复确认，直接透传即可。
+**注意**：合并 Skill 会自行产出合并计划并等待用户确认，总控无需重复确认，直接透传即可。
 
 **完成后检查**：
 - 验证 `prd/archive/` 下存在对应归档目录。

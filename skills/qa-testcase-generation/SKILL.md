@@ -20,7 +20,12 @@ description: 基于 PRD 分析报告和变更影响分析结果，生成流程�
 ## 前置条件
 优先检查：
 1. 存在 `prd/{feature-dir}/output/*-analysis.md`
-   - **若分析报告不存在**，自动调用 `/qa-prd-analysis` 技能先生成分析报告，完成后再继续执行本技能。
+   - **若分析报告不存在**，你需要自行完成 PRD 分析：
+     1. 读取 `skills/qa-prd-analysis/SKILL.md` 了解分析流程与输出规范。
+     2. 按照其执行流程（Step 1～5）对当前 PRD 进行分析。
+     3. 产出 `prd/{feature-dir}/output/{feature-name}-analysis.md` 及 `*-clarifications.md`（如有澄清项）。
+     4. 验证产物已成功生成后，再继续执行本技能的后续流程。
+     - 若以上步骤最终仍无法产出有效的分析报告，则按下方 [失败处理](#失败处理) 规则中止。
    - 生成完成后，验证 `prd/{feature-dir}/output/*-analysis.md` 已成功产出，若仍未生成则中止并报错。
 2. **检查是否已有用例**：检查 `prd/{feature-dir}/output/test-cases/` 目录是否已存在。
    - **若存在 `_progress.md` 且有未完成模块**（状态为 `待生成` ）：说明上次是中断退出，**不询问重新生成**，直接读取 `_progress.md` 续接未完成的模块。参见 [断点恢复与进度跟踪](#断点恢复与进度跟踪)。
@@ -44,7 +49,7 @@ description: 基于 PRD 分析报告和变更影响分析结果，生成流程�
 ### Step 1：加载输入材料
 读取：
 - `AGENTS.md` （如有）
-- `prd/{feature-dir}/output/*-analysis.md`，若不存在，先调用 `/qa-prd-analysis`生成
+- `prd/{feature-dir}/output/*-analysis.md`，若不存在，参照前置条件中的说明自行完成 PRD 分析后再继续
 - `prd/{feature-dir}/output/*-clarifications.md`, 若澄清问题清单内还有未确认的问题，优先询问用户是否忽略未澄清的问题
 - `skills/qa-testcase-generation/case-template.md`
 - `skills/qa-testcase-generation/case-standards.md`
@@ -178,14 +183,6 @@ python scripts/markdown_case_convert_to_excel.py prd/{feature-dir}/output/test-c
 > 完成后更新对应行状态，最终全部 `已完成` 后再执行 Step 4（Excel 转换）和 Step 5（汇总）。
 ```
 
-### 状态标记约定
-| 标记 | 含义 |
-|------|------|
-| 待生成 | 尚未开始 |
-| 生成中 | 当前正在生成（同时只能有一个） |
-| 已完成 | 文件已写入并验证通过 |
-| 失败 | 生成过程中出错，需重试 |
-
 ## 大量用例处理策略
 当预计生成用例超过 100 条时：
 - 按其中复杂的组件拆分为独立文件
@@ -195,5 +192,5 @@ python scripts/markdown_case_convert_to_excel.py prd/{feature-dir}/output/test-c
 
 ## 失败处理
 如遇以下情况，中止并说明：
-- 分析报告缺失且自动生成失败（已尝试调用 `/qa-prd-analysis` 但仍未产出有效分析报告）
+- 分析报告缺失且自行分析生成失败（已尝试按 PRD 分析流程生成但仍未产出有效分析报告）
 - 分析报告中的功能点过于模糊，无法构建操作流

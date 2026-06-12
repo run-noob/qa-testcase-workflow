@@ -24,7 +24,7 @@ TAPD_API_BASE = "https://hytapd.huya.info/proxy"
 TAPD_SIGN = os.environ.get("TAPD_SIGN", "")
 
 # 需要查询的字段
-DEFAULT_FIELDS = "id,name,status,owner,description,priority,iteration_id,created,modified"
+DEFAULT_FIELDS = "id,name,status,owner,description,priority,iteration_id,created,modified,test_focus"
 
 
 def get_headers() -> dict:
@@ -203,6 +203,7 @@ def build_story_markdown(story: dict) -> str:
         "iteration_id": "迭代 ID",
         "created": "创建时间",
         "modified": "最后修改时间",
+        "test_focus": "测试重点"
     }
 
     for key, label in field_labels.items():
