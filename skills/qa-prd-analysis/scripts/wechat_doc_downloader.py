@@ -24,7 +24,7 @@ class WechatDocDownloader:
         self.sid = ""
         self.cookie = ""
 
-    def _get_headers(self, url=""):
+    def _get_headers(self, url="", cookie_str=None):
         accept = "*/*"
         if "get_auth_info" in url or "getbannerinfo" in url:
             accept = "application/json, text/plain, */*"
@@ -34,7 +34,7 @@ class WechatDocDownloader:
           "accept": f"{accept}",
           "sec-ch-ua": "\"Chromium\";v=\"129\", \"Not=A?Brand\";v=\"8\"",
           "sec-ch-ua-mobile": "?0",
-          "cookie": f"{self.cookie}",
+          "cookie": f"{cookie_str or self.cookie}",
           "sec-fetch-site": "same-origin",
           "sec-fetch-mode": "cors",
           "sec-fetch-dest": "empty",
@@ -49,11 +49,13 @@ class WechatDocDownloader:
         """获取并校验cookies"""
         print(f"当前脚本依赖企业微信文档域名下的cookie信息")
         cookies = self._get_cookie_from_server()
-        if not cookies:
+        if not self._check_cookie(cookies):
+            cookies = self._get_cookie_from_backup_server()
+        if not self._check_cookie(cookies):
             cookies = self._get_cookie_from_local()
         self.cookie = cookies
         if not self.cookie or not self._check_cookie():
-            raise Exception("Failed to get auth info")
+            raise Exception("所有Cookie已失效，无法继续进行，请手动更新Cookie后重试")
 
     @staticmethod
     def _get_cookie_from_local():
@@ -83,9 +85,25 @@ class WechatDocDownloader:
         except:
             print("failed to get cookie from server")
 
-    def _check_cookie(self):
+    @staticmethod
+    def _get_cookie_from_backup_server():
+        """备用渠道：从 uat3.huya.info 获取微信文档 cookie"""
         try:
-            self._get_banner_info()
+            print("尝试从备用服务获取微信文档的cookie信息")
+            url = "https://uat3.huya.info/uat/GetWechatCookie"
+            resp = httpx.get(url, timeout=5)
+            if resp.status_code == 200:
+                res = resp.json()
+                if res.get("retcode") == 0:
+                    cookie_str = res.get("result", "")
+                    if cookie_str:
+                        return cookie_str
+        except:
+            print("failed to get cookie from backup server")
+
+    def _check_cookie(self, cookie_str=None):
+        try:
+            self._get_banner_info(cookie_str)
             return True
         except Exception as e:
             print(f"cookie expired!")
@@ -105,9 +123,9 @@ class WechatDocDownloader:
             raise Exception("Failed to get auth info")
         return resp['param']['sid']
     
-    def _get_banner_info(self):
+    def _get_banner_info(self, cookie_str=None):
         banner_url = f"{self.base_url}/disk/getbannerinfo?func=3&captcha_sence=1"
-        resp = httpx.get(banner_url, headers=self._get_headers(banner_url))
+        resp = httpx.get(banner_url, headers=self._get_headers(banner_url, cookie_str))
         msg = f"Cookie check failed, status code: {resp.status_code}, res: {resp.text}, cannot proceed with export"
         if resp.status_code != 200:
             raise Exception(msg)
