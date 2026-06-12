@@ -641,6 +641,22 @@ def guess_mime(path: Path) -> str:
     return "image/png"
 
 
+def _find_image_in_line(line_content: str, raw_path: str) -> Optional[re.Match]:
+    """在行内容中查找图片引用，先尝试 Markdown 语法再尝试 HTML <img> 标签。"""
+    escaped = re.escape(raw_path)
+    # Markdown 语法: ![alt](path)
+    md_re = re.compile(r'!\[[^\]]*\]\(' + escaped + r'\)')
+    m = md_re.search(line_content)
+    if m:
+        return m
+    # HTML 语法: <img ... src="path" ...>
+    html_re = re.compile(
+        r'<img\b[^>]*?src\s*=\s*["\']' + escaped + r'["\'][^>]*?/?\s*>',
+        re.IGNORECASE,
+    )
+    return html_re.search(line_content)
+
+
 def embed_descriptions_into_markdown(
     md_path: Path,
     image_outputs: List[Dict[str, Any]],
@@ -648,21 +664,20 @@ def embed_descriptions_into_markdown(
     """
     将图片分析描述嵌入 Markdown，写入新文件（覆盖 md_path），原始文件归档到 raw_dir。
 
-    - 单图行：在行后插入 blockquote 格式的描述块（原有行为）。
-    - 同行多图（如 HTML 表格行）：在每个 <img> 标签后直接插入内联 HTML 描述，
-      避免所有描述堆叠在行尾、与图片失去对应关系。
+    - 每张图片的描述都插入到该图片引用之后（不分单图/多图）。
+    - Markdown 语法 `![alt](path)`：在图片后插入 blockquote 格式的描述块。
+    - HTML 语法 `<img>`：在标签后插入内联 HTML 描述。
 
     幂等：重复运行不重复插入。
-    按行号从大到小倒序处理，保证插入时前面的行号不漂移。
+    按行号从大到小倒序处理，同行内按位置从右到左处理，保证插入时前面的位置不漂移。
 
     Args:
         image_outputs: 图片描述结果
         md_path: 原始markdown文件
 
     Returns:
-        成功嵌入的图片数量。
+        新生成的嵌入描述后的文件路径。
     """
-    embed_marker = "> **[图片描述]**"
 
     content = md_path.read_text(encoding="utf-8")
     lines = content.splitlines(keepends=True)
@@ -682,50 +697,79 @@ def embed_descriptions_into_markdown(
         if idx < 0 or idx >= len(lines):
             continue
 
-        if len(items) == 1:
-            # 单图行：原有逻辑，行后插入 blockquote 块
-            item = items[0]
-            check_idx = idx + 1
-            while check_idx < len(lines) and lines[check_idx].strip() == "":
-                check_idx += 1
-            if check_idx < len(lines) and lines[check_idx].rstrip("\n").startswith(embed_marker):
-                continue
+        line_content = lines[idx]
+
+        # 先找到每张图片在行内的位置，按位置从右到左排序（倒序插入避免位置偏移）
+        item_positions: List[Tuple[int, Dict[str, Any]]] = []
+        for item in items:
             raw_path = item.get("raw_path", "")
-            label = raw_path.split("/")[-1] if raw_path else item.get("image_id", "")
-            desc_lines = item["analysis_text"].splitlines()
-            block_lines = ["\n", f"{embed_marker} `{label}`\n", "\n```text\n"]
-            for dl in desc_lines:
-                block_lines.append(f" {dl}\n" if dl.strip() else "\n")
-            block_lines.append("\n```\n")
-            lines[idx + 1:idx + 1] = block_lines
-            embedded += 1
-        else:
-            # 同行多图（如 HTML 表格行）：在每个 <img> 标签后插入内联 HTML 描述
-            line_content = lines[idx]
-            for item in items:
-                raw_path = item.get("raw_path", "")
-                analysis_text = item.get("analysis_text", "").strip()
-                if not raw_path or not analysis_text:
-                    continue
+            if not raw_path:
+                continue
+            m = _find_image_in_line(line_content, raw_path)
+            if m:
+                item_positions.append((m.start(), item))
+            else:
+                # 图片引用可能已被之前的嵌入修改；用宽松匹配兜底
                 label = raw_path.split("/")[-1]
-                _inline_embed_marker = "[图片描述]:"
-                marker = f"{_inline_embed_marker} {label}"
-                escaped = re.escape(raw_path)
-                img_re = re.compile(
-                    r'<img\b[^>]*?src\s*=\s*["\']' + escaped + r'["\'][^>]*?/?\s*>',
-                    re.IGNORECASE,
-                )
-                m = img_re.search(line_content)
-                if not m:
-                    continue
-                # 幂等检查：img 标签后是否已存在该图片的 marker
+                fallback = re.compile(re.escape(label))
+                fm = fallback.search(line_content)
+                if fm:
+                    item_positions.append((fm.start(), item))
+
+        # 按位置从右到左处理
+        item_positions.sort(key=lambda x: x[0], reverse=True)
+
+        for _, item in item_positions:
+            raw_path = item.get("raw_path", "")
+            analysis_text = item.get("analysis_text", "").strip()
+            if not raw_path or not analysis_text:
+                continue
+
+            label = raw_path.split("/")[-1] if raw_path else item.get("image_id", "")
+
+            # 在当前（可能已被修改过的）行内容中重新匹配图片引用
+            m = _find_image_in_line(line_content, raw_path)
+            if not m:
+                continue
+
+            match_text = m.group(0)
+            is_html = match_text.lower().startswith("<img")
+            img_desc_start = "---图片描述开始---"
+            img_desc_end = "---图片描述结束---"
+            if is_html:
+                # HTML <img> 标签：在标签后插入内联 HTML 描述
+                _inline_marker = "图片文件名:"
+                marker = f"{_inline_marker} {label}"
+                # 幂等检查
                 if marker in line_content[m.end():]:
                     continue
                 safe_text = analysis_text.replace("\n", "<br/>")
-                desc_html = f'<br/>---<b>{marker}</b><br/><br/>{safe_text}<br/>---'
+                desc_html = (
+                    f"<br/>{img_desc_start}<br/>"
+                    f"<b>{marker}</b><br/><br/>"
+                    f"{safe_text}<br/>"
+                    f"{img_desc_end}"
+                )
                 line_content = line_content[:m.end()] + desc_html + line_content[m.end():]
                 embedded += 1
-            lines[idx] = line_content
+            else:
+                # Markdown ![alt](path) 语法：在图片后插入 blockquote 描述块
+                # 幂等检查：图片后紧跟的文本中是否已存在 embed_marker
+                embed_marker = "图片文件名:"
+                after_match = line_content[m.end():]
+                if embed_marker in after_match:
+                    continue
+                desc_lines = analysis_text.splitlines()
+                block_parts = [f"\n{img_desc_start}\n", f"\n{embed_marker} `{label}`\n", "\n```text\n"]
+                for dl in desc_lines:
+                    block_parts.append(f" {dl}\n" if dl.strip() else "\n")
+                block_parts.append("```\n")
+                block_parts.append(f"{img_desc_end}\n")
+                desc_block = "".join(block_parts)
+                line_content = line_content[:m.end()] + desc_block + line_content[m.end():]
+                embedded += 1
+
+        lines[idx] = line_content
 
     new_content = "".join(lines)
     new_md_path = md_path.with_stem(md_path.stem + "-image-desc-embedded")

@@ -17,24 +17,18 @@ description: 分析 prd/{feature-dir} 下的 PRD 文档，输出结构化需求�
 - 如果传入的是文件路径，优先分析该文件。
 - 如果传入的是需求名，先确认对应的需求目录名，再在 `prd/{feature-dir}/` 下定位主 PRD 文件。
 - 如果未传参数，则扫描 `prd/` 下的需求目录，再向用户先确认本次要处理的需求目录。
-- 如果需求目录里匹配到多个候选目录或多个候选 PRD 文件，必须先向用户确认，不要自行猜测。
 
 ## 强制规则
-1. 任务开始前，先读取 `glossary/` 下所有术语文件，建立业务上下文。
+1. 在正式分析前，必须先确认需求目录名（`feature-dir`），再定位该目录下的主 PRD 文件。
 2. 优先参考 `skills/qa-prd-analysis/analysis-template.md` 模板。
 3. 所有输出使用中文；技术术语保留英文原文，并在必要时附中文解释。
-4. 文件名使用 kebab-case。
-5. 在正式分析前，必须先确认需求目录名（`feature-dir`），再定位该目录下的主 PRD 文件。
-6. 默认约定主 PRD 文件与需求目录同名，例如 `prd/退款需求/退款需求.md`；若不一致，可接受 `{feature-dir}-prd.md` 等命名，但必须先确认。
-7. 分析产出写入 `prd/{feature-dir}/output/{feature-name}-analysis.md`。
-8. 不要修改 `test-cases/` 全量用例库。
-9. 遇到术语表中不存在且无法确定含义的术语，标记为 `[待确认术语: xxx]`，继续分析，不要臆断。
-10. 如果 PRD 超过 3000 行，先生成结构化大纲，再按章节分段分析，最后汇总。
-11. 如果 PRD 中含有原型图、流程图、截图等图片信息时，且当前模型不支持视觉能力。
+4. 输出的文件或目录名尽量使用中文。
+5. 遇到术语表中不存在且无法确定含义的术语，标记为 `[待确认术语: xxx]`，继续分析，不要臆断。
+6. 如果 PRD 中含有原型图、流程图、截图等图片信息时，且当前模型不支持视觉能力。
     - **严禁**尝试使用 `READ`、打开二进制文件或其他文件读取方式处理图片。
     - **必须**使用图片解析脚本 `prd_image_parser.py`（该脚本使用的是专门的多模态模型） 生成图片解析结果并纳入需求分析报告。
-12. **严禁直接读取非 Markdown 格式的 PRD 文件**（如 `.docx`、`.pdf`、`.pptx`、`.xlsx`、`.png` 等二进制或 Office 格式文件）。若 PRD 文件不是 `.md` 格式，必须先使用 `doc_convert_to_markdown.py` 脚本将其转换为 Markdown，再读取转换后的 `.md` 文件进行分析。
-13. 编号命名规范，所有组件、流程使用统一编号格式：{SystemModule}-{Component}
+7. **严禁直接读取非 Markdown 格式的 PRD 文件**（如 `.docx`、`.pdf`、`.pptx`、`.xlsx`、`.png` 等二进制或 Office 格式文件）。若 PRD 文件不是 `.md` 格式，必须先使用 `doc_convert_to_markdown.py` 脚本将其转换为 Markdown，再读取转换后的 `.md` 文件进行分析。
+8. 编号命名规范，所有组件、流程使用统一编号格式：{SystemModule}-{Component}
     - SystemModule: 从系统角度划分的模块，如Trade：交易模块
     - Component：页面下的某一个区块或者子组件（注意划分的颗粒度），如Filter：筛选组件; SubmitBtn: 提交按钮
 
@@ -191,7 +185,7 @@ python scripts/prd_image_parser.py \
 
 常用参数：
 - `--prd-file`：必填，目标 PRD Markdown 文件
-- `--embed`：**强烈推荐开启**，会将图片描述直接嵌入源 Markdown 文件中图片引用的紧后方，无需再单独读取image-analysis 报告；幂等，重复运行不重复插入
+- `--embed`：**强烈推荐开启**，会将图片描述直接嵌入源 Markdown 文件中图片引用的紧后方，生成`{feature-name}-image-desc-embedded.md`，无需再单独读取image-analysis 报告
 - `--image-path`：选填，只分析某一张图片时使用，支持相对路径或绝对路径
 - `--detail-level`：图片解析深度，可选 `brief`、`standard`、`deep`
 - `--force-refresh`：忽略缓存，强制重新生成 PRD 摘要和图片分析结果
@@ -202,7 +196,6 @@ python scripts/prd_image_parser.py \
 - `prd/{feature-dir}/output/.cache/prd-image-parser/` 缓存目录
 - `prd/{feature-dir}/{feature-name}-image-desc-embedded.md` 有`--embed`参数时生成
 使用要求：
-- 使用 `--embed` 参数时，图片描述会直接插入到源 Markdown 图片引用行的紧后方（格式为 `**[图片描述]** {filename}`），**只需读取嵌入图片描述后的`{feature-name}-image-desc-embedded.md`文件，无需额外读取 image-analysis 报告**。
 - 如果脚本输出了 `[无法识别: xxx]`、错误日志或缺失图片，需要在分析报告中保留不确定性说明，不要自行脑补
 
 
@@ -225,13 +218,6 @@ python scripts/prd_image_parser.py \
 
 #### 3.4 核心业务流程
 *针对跨多个页面模块组件的复杂业务*，梳理其核心流程。若流程图来自图片，需将节点、分支条件、流转方向转写成文本，不要只引用原图。
-
-#### 3.5 风险与疑问
-标记：
-- `[需求模糊: xxx，建议确认: xxx]`
-- 潜在冲突点
-- 可能遗漏场景
-- 待补充资料（接口、图片、状态机、角色权限等）
 
 ### Step 4:
 
@@ -256,16 +242,16 @@ python scripts/prd_image_parser.py \
 - C类：边界与异常问题（优先级：P2）
   - 异常场景处理策略不明确
   - 业务规则的边界处理不明确
-  - 仅在边界或异常条件下有重大影响时才澄清
+  - **仅在边界或异常条件下有重大影响时才澄清**
 
 - D类：安全相关问题（优先级：P2） 
   - 涉及支付、刷单、抽奖活动等资金财产安全问题
   - 涉及法律、法务风险问题
-  - 仅在有明显安全风险时才澄清
+  - **仅在有明显安全风险时才澄清**
 
 - E类：性能相关问题（优先级：P3） 
   - 预计的访问量、并发数以及响应时间要求
-  - 仅在PRD明确提及性能要求时才澄清
+  - **仅在PRD明确提及性能要求时才澄清**
 
 优先处理A、B类问题，澄清清单输出格式参考：
 ```
@@ -275,6 +261,8 @@ python scripts/prd_image_parser.py \
 疑问：[具体的问题]
 为什么重要：
 [澄清这个问题对业务逻辑测试的意义]
+回答: 
+[留空引导用户将确认方案填写在这里]
 ```
 
 ### Step 5：完成汇报
