@@ -186,10 +186,10 @@ python scripts/prd_image_parser.py \
 常用参数：
 - `--prd-file`：必填，目标 PRD Markdown 文件
 - `--embed`：**强烈推荐开启**，会将图片描述直接嵌入源 Markdown 文件中图片引用的紧后方，生成`{feature-name}-image-desc-embedded.md`，无需再单独读取image-analysis 报告
-- `--image-path`：选填，只分析某一张图片时使用，支持相对路径或绝对路径
 - `--detail-level`：图片解析深度，可选 `brief`、`standard`、`deep`
+- `--image-path`：选填，只分析某一张图片时使用，支持相对路径或绝对路径。用于需要对某张重要图片进行二次确认的情况。单图模式下，分析结果会直接输出到控制台。
+- `--custom-prompt`：选填，仅与 `--image-path` 配合使用。传入自定义分析指令，用于深度解析某张图的特定信息（如"重点关注弹窗的按钮状态变化逻辑"），会合并到默认分析 prompt 中。
 - `--force-refresh`：忽略缓存，强制重新生成 PRD 摘要和图片分析结果
-- `--include-image-snippet`：在输出中附带原始图片引用语句
 
 默认产物：
 - `prd/{feature-dir}/output/{feature-name}-image-analysis.md`

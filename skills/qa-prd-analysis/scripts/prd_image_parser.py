@@ -57,6 +57,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--prd-file", required=True, help="Path to PRD markdown file.")
     parser.add_argument("--output-dir", required=False, help="Output directory.")
     parser.add_argument("--image-path", help="Optional single image path from PRD (relative or absolute).")
+    parser.add_argument("--custom-prompt", help="单图模式下的自定义分析指令，与 --image-path 配合使用。用于深度解析某张图的特定信息。")
     parser.add_argument("--model", default="google/gemini-3-flash-preview", help="Model used for summary and image analysis.")
     parser.add_argument("--max-images", type=int, default=DEFAULT_MAX_IMAGES, help="Max image count in full mode.")
     parser.add_argument(
@@ -306,15 +307,19 @@ def image_analysis_key(
     model: str,
     detail_level: str,
     prompt_version: str = IMAGE_PROMPT_VERSION,
+    custom_prompt: Optional[str] = None,
 ) -> str:
+    payload_dict: Dict[str, Any] = {
+        "image_path": image_path,
+        "file_summary_sha": sha256_text(file_summary_text),
+        "detail_level": detail_level,
+        "image_prompt_version": prompt_version,
+        "model": model,
+    }
+    if custom_prompt:
+        payload_dict["custom_prompt_sha"] = sha256_text(custom_prompt)
     payload = json.dumps(
-        {
-            "image_path": image_path,
-            "file_summary_sha": sha256_text(file_summary_text),
-            "detail_level": detail_level,
-            "image_prompt_version": prompt_version,
-            "model": model,
-        },
+        payload_dict,
         ensure_ascii=False,
         sort_keys=True,
     )
@@ -566,6 +571,7 @@ def build_image_prompt(
     heading_chain: List[str],
     local_ctx: str,
     image_alt: str,
+    custom_prompt: Optional[str] = None,
 ) -> str:
     detail_map = {
         "brief": "简洁描述，优先关键点。",
@@ -594,6 +600,8 @@ def build_image_prompt(
     prompt += f"=== 图片局部上下文(前后文) ===\n{local_ctx}\n"
     if image_alt:
         prompt += f"=== 图片标注信息 ===\nalt: {image_alt or '[空]'}\n"
+    if custom_prompt:
+        prompt += f"\n=== 用户要求的重点关注信息 ===\n{custom_prompt}\n"
     return prompt
 
 
@@ -858,6 +866,7 @@ def parse_prd_images(
     batch_gap: int = DEFAULT_BATCH_GAP,
     max_batch_size: int = DEFAULT_MAX_BATCH,
     no_batch: bool = False,
+    custom_prompt: Optional[str] = None,
 ) -> Path | None:
     """
     解析 PRD Markdown 中的图片，生成文字描述，可选嵌入源文件。
@@ -908,6 +917,9 @@ def parse_prd_images(
 
     if not selected:
         raise ValueError("No images found to parse.")
+
+    if custom_prompt and not image_path:
+        print("[HINT] --custom-prompt 仅在单图模式（同时指定 --image-path）下生效，当前为全量模式，该参数将被忽略。")
 
     summary = ""
     summary_key = file_summary_key(prd_text, model)
@@ -973,6 +985,7 @@ def parse_prd_images(
                 file_summary_text=summary,
                 model=model,
                 detail_level=detail_level,
+                custom_prompt=custom_prompt,
             )
             img_cache_path, _ = cache_paths(cache_dir, i_key, "image")
             if img_cache_path.exists() and not force_refresh:
@@ -1065,6 +1078,7 @@ def parse_prd_images(
                     file_summary_text=summary,
                     model=model,
                     detail_level=detail_level,
+                    custom_prompt=custom_prompt,
                 )
                 img_cache_path, _ = cache_paths(cache_dir, i_key, "image")
                 heading = heading_chain_until_line(prd_text, ref.line_no)
@@ -1074,6 +1088,7 @@ def parse_prd_images(
                     heading_chain=heading,
                     local_ctx=ctx,
                     image_alt=ref.alt,
+                    custom_prompt=custom_prompt,
                 )
                 if dry_run:
                     group_analysis[str(ref.resolved_path)] = "[dry-run] image analysis skipped."
@@ -1139,6 +1154,9 @@ def parse_prd_images(
     md_path = output_dir / f"{feature_name}-image-analysis.md"
     log_path = output_dir / f"{feature_name}-image-analysis-errors.log"
 
+    if mode == "single-image" and image_outputs:
+        print(image_outputs[0]["analysis_text"])
+
     if emit_json:
         write_json(json_path, result)
         if not embed:
@@ -1190,6 +1208,7 @@ def main() -> int:
             batch_gap=args.batch_gap,
             max_batch_size=args.max_batch_size,
             no_batch=args.no_batch,
+            custom_prompt=args.custom_prompt,
         )
         return 0
     except:
