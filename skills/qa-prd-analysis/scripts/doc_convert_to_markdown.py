@@ -12,7 +12,11 @@ import zipfile
 import shutil
 import subprocess
 from pathlib import Path
-import httpx
+try:
+    import httpx
+except:
+    print("请先安装 httpx 库：python -m pip install httpx")
+    sys.exit(1)
 try:
     from bs4 import BeautifulSoup
 except:

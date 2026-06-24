@@ -48,7 +48,6 @@ description: 审查当前需求生成的测试用例质量，检查完整性、�
 - `prd/{feature-dir}/output/*-analysis.md`
 - `prd/{feature-dir}/output/test-cases/test-case-summary.md`
 - `prd/{feature-dir}/output/test-cases/` 下所有当前需求生成的用例文件
-- `glossary/`：遇到不懂的业务概念，在该目录查找相关术语文件。
 
 ### Step 2：多维度评审
 
@@ -72,7 +71,6 @@ description: 审查当前需求生成的测试用例质量，检查完整性、�
 #### 2.3 规范性评审
 检查：
 - 文件格式是否符合模板要求
-- 用例 ID 是否符合编号规则，是否源自产品分析文档 `prd/{feature-dir}/output/*-analysis.md`
 - 优先级分配是否合理
 - 描述是否清晰无歧义
 - 步骤是否可独立执行

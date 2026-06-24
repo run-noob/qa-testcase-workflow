@@ -14,8 +14,12 @@ import time
 import argparse
 import json
 import logging
-
-import httpx
+import sys
+try:
+    import httpx
+except:
+    print("请先安装 httpx 库：python -m pip install httpx")
+    sys.exit(1)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()

@@ -35,6 +35,7 @@ def parse_test_cases_from_markdown(md_text: str, start_index: int = 1) -> dict:
 
     # 类型映射
     type_mapping = {
+        "正常": "functional",
         "功能": "functional",
         "边界": "boundary",
         "异常": "error",
@@ -79,7 +80,7 @@ def parse_test_cases_from_markdown(md_text: str, start_index: int = 1) -> dict:
                         break
 
         def find_id(text):
-            match = re.search(r'[A-Za-z]+(?:-[A-Za-z]+)*-\d+', text)
+            match = re.search(r'[A-Za-z_]+(?:[_-][A-Za-z_]+)*[_-]\d+', text)
             if match:
                 return match.group(0)
             return None
@@ -100,6 +101,10 @@ def parse_test_cases_from_markdown(md_text: str, start_index: int = 1) -> dict:
                 continue
             if re.match(r'^[A-Z][A-Z0-9_-]*$', line) and not re.search(r'[一-鿿]', line):
                 continue
+            if "ID" in line.upper() or "编号" in line:
+                continue
+            if "优先级" in line or "类型" in line or "设计方法" in line:
+                continue
             name_lines.append(line)
         tc_name = ' '.join(name_lines).strip(" #:")
 
@@ -117,8 +122,11 @@ def parse_test_cases_from_markdown(md_text: str, start_index: int = 1) -> dict:
         }
 
         # 提取各个字段
-        def get_field(pattern, text, default=None):
-            m = re.search(pattern, text,  re.MULTILINE | re.DOTALL)
+        def get_field(pattern, text, default=None, multiline=False):
+            if multiline:
+                m = re.search(pattern, text, re.MULTILINE | re.DOTALL)
+            else:
+                m = re.search(pattern, text)
             return _replace_br(m.group(1).strip("*- ")) if m else default
 
         # 如果 body 中有明确定义的字段，则覆盖 header 中的
@@ -126,9 +134,10 @@ def parse_test_cases_from_markdown(md_text: str, start_index: int = 1) -> dict:
         if body_priority:
             tc["priority"] = body_priority
 
-        body_type = get_field(r'\*\*类型\*\*[:：]\s*(.*)', seg)
+        body_type = get_field(r'类型\*\*[:：]\s*(.*)', seg)
         if body_type:
             # 同样对 body 中的类型进行映射
+            body_type = body_type.replace("测试", "")
             body_type_lower = body_type.lower()
             if body_type_lower in type_mapping:
                 tc["type"] = type_mapping[body_type_lower]
@@ -138,9 +147,9 @@ def parse_test_cases_from_markdown(md_text: str, start_index: int = 1) -> dict:
                         tc["type"] = v
                         break
 
-        tc["precondition"] = get_field(r'\*\*前置条件\*\*[:：]\s*(.*?)(?=测试步骤)', seg, "")
-        tc["test_data"] = get_field(r'\*\*测试数据\*\*[:：]\s*(.*?)(?=备注)', seg, "")
-        tc["remark"] = get_field(r'\*\*备注\*\*[:：]\s*(.*?)(?=---|#|\Z)', seg, "")
+        tc["precondition"] = get_field(r'\*\*前置条件\*\*[:：]\s*(.*?)(?=测试步骤)', seg, "", True)
+        tc["test_data"] = get_field(r'\*\*测试数据\*\*[:：]\s*(.*?)(?=备注)', seg, "", True)
+        tc["remark"] = get_field(r'\*\*备注\*\*[:：]\s*(.*?)(?=---|#|\Z)', seg, "", True)
 
         # 提取步骤 (多行)
         steps_match = re.search(r'\*\*测试步骤\*\*[:：]\s*(.*?)(?=\n\*\*|\n---|\n##|$)', seg, re.DOTALL)
@@ -176,10 +185,19 @@ def parse_test_cases_from_markdown(md_text: str, start_index: int = 1) -> dict:
                 tc["steps"] = _replace_br("\n".join(steps_list))
                 tc["expected"] = _replace_br("\n".join(expected_list))
             else:
-                tc["steps"] = _replace_br(steps_content)
-                expected_match = re.search(r'\*\*预期结果\*\*[:：]\s*(.*?)(?=\n\*\*|\n---|\n##|$)', seg, re.DOTALL)
-                if expected_match:
-                    tc["expected"] = _replace_br(expected_match.group(1).strip())
+                # 不是表格模式
+                steps = get_field(r'\*\*测试步骤\*\*[:：]\s*(.*?)(?=预期结果)', _replace_br(seg), "", True)
+                if steps:
+                    tc["steps"] = steps
+                else:
+                    tc["steps"] = _replace_br(steps_content)
+                expected = get_field(r'\*\*预期结果\*\*[:：]\s*(.*?)(?=测试数据)', _replace_br(seg), "", True)
+                if expected:
+                    tc["expected"] = expected
+                else:
+                    expected_match = re.search(r'\*\*预期结果\*\*[:：]\s*(.*?)(?=\n\*\*|\n---|\n##|$)', seg, re.DOTALL)
+                    if expected_match:
+                        tc["expected"] = _replace_br(expected_match.group(1).strip())
             test_cases.append(tc)
         else:
             if len(test_cases) > 0:
@@ -233,6 +251,8 @@ def convert_markdown_cases_to_excel(input_dir: str, output_path: str) -> str:
     module_ranges: dict[str, list[int]] = {}
 
     for md_file in md_files:
+        if "progress.md" in md_file.name.lower() or "test-case-summary.md" in md_file.name.lower():
+            continue
         relative = md_file.relative_to(input_path)
         parts = list(relative.parent.parts) + [relative.stem]
         module = "-".join(parts) if parts else relative.stem
