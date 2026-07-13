@@ -12,6 +12,48 @@ except:
 logger = logging.getLogger()
 
 
+def list_completed_case_files(input_path: Path) -> list[Path]:
+    """Read the canonical case file list from _progress.md."""
+    progress_path = input_path / "_progress.md"
+    if not progress_path.is_file():
+        raise ValueError(f"缺少用例文件清单: {progress_path}")
+
+    rows = []
+    for raw_line in progress_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not (line.startswith("|") and line.endswith("|")):
+            continue
+        columns = [column.strip() for column in line.strip("|").split("|")]
+        if len(columns) < 4 or columns[0] in {"序号", "---"}:
+            continue
+        if all(set(column) <= {"-", ":", " "} for column in columns):
+            continue
+        rows.append(columns)
+
+    completed_files = []
+    seen = set()
+    root = input_path.resolve()
+    for columns in rows:
+        relative_name, status = columns[2], columns[3]
+        if status != "已完成":
+            continue
+        case_path = (input_path / relative_name).resolve()
+        if case_path.parent != root and root not in case_path.parents:
+            raise ValueError(f"用例清单包含越界路径: {relative_name}")
+        if case_path.suffix.lower() != ".md":
+            raise ValueError(f"用例清单仅支持 Markdown 文件: {relative_name}")
+        if case_path in seen:
+            raise ValueError(f"用例清单包含重复文件: {relative_name}")
+        if not case_path.is_file():
+            raise ValueError(f"用例清单中的文件不存在: {relative_name}")
+        seen.add(case_path)
+        completed_files.append(case_path)
+
+    if not completed_files:
+        raise ValueError(f"用例清单中没有状态为“已完成”的文件: {progress_path}")
+    return completed_files
+
+
 def _replace_br(text):
     text = text.replace(r'<br>', ' ')
     return re.sub(r"\n\s*", "\n", text, re.DOTALL)
@@ -207,7 +249,7 @@ def parse_test_cases_from_markdown(md_text: str, start_index: int = 1) -> dict:
 
 
 def convert_markdown_cases_to_excel(input_dir: str, output_path: str) -> str:
-    """将目录中的所有 Markdown 用例文件转换为 Excel 文件。
+    """将 _progress.md 清单中的已完成用例转换为 Excel 文件。
 
     Args:
         input_dir: 包含 Markdown 用例文件的目录路径。
@@ -220,9 +262,7 @@ def convert_markdown_cases_to_excel(input_dir: str, output_path: str) -> str:
     if not input_path.is_dir():
         raise ValueError(f"输入路径不是有效的目录: {input_dir}")
 
-    md_files = sorted(input_path.glob("**/*.md"))
-    if not md_files:
-        raise ValueError(f"目录中没有找到 .md 文件: {input_dir}")
+    md_files = list_completed_case_files(input_path)
 
     wb = Workbook()
     ws = wb.active
@@ -315,11 +355,11 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="将目录中的 Markdown 测试用例文件转换为 Excel 文件"
+        description="将 _progress.md 清单中的已完成 Markdown 测试用例转换为 Excel 文件"
     )
     parser.add_argument(
         "input_dir",
-        help="包含 Markdown 用例文件的目录路径",
+        help="包含 _progress.md 和 Markdown 用例文件的目录路径",
     )
     parser.add_argument(
         "-o", "--output",
