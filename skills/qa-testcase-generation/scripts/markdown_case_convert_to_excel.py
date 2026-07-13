@@ -77,6 +77,7 @@ def parse_test_cases_from_markdown(md_text: str, start_index: int = 1) -> dict:
 
     # 类型映射
     type_mapping = {
+        "正常": "functional",
         "功能": "functional",
         "边界": "boundary",
         "异常": "error",
@@ -87,38 +88,14 @@ def parse_test_cases_from_markdown(md_text: str, start_index: int = 1) -> dict:
         "security": "security"
     }
 
-    # 提取测试用例,可能格式：
-    #    ## [MODULE-001] [P1] [功能] Name
-    #    ## [P1] [功能][MODULE-001]Name
-    #    ## [P1] [功能] MODULE-001Name
-    #    ### ADMIN-PANEL-ID\n**[边界][P2]Name**
+    # 每条用例使用标题、用例类型、优先级三个独立字段。
     segments = re.split(r'\n(?=#{2,}\s)', md_text)
 
     for seg in segments:
-        # 匹配标题区域：从 ##/### 到 **前置条件** 之前（可能多行）
-        header_match = re.search(r'(#{2,}\s.*?)(?=\n- \*\*前置条件\*\*)', seg, re.DOTALL)
-        if not header_match:
+        title_match = re.match(r'#{2,}\s+([^\n]+)', seg)
+        if not title_match or not re.search(r'\*\*前置条件\*\*[:：]', seg):
             continue
-        header_text = header_match.group(1)
-        # 提取整个标题区域中所有方括号中的内容
-        tokens = re.findall(r'\[(.*?)\]', header_text)
-        tc_priority = None
-        tc_type = None
-        # 优先级正则 P0-P3
-        priority_pattern = r'^P[0-3]$'
-
-        for token in tokens:
-            token_strip = token.strip().lstrip("[").rstrip("]")
-            if re.match(priority_pattern, token_strip, re.I):
-                tc_priority = token_strip.upper()
-            elif token_strip.lower() in type_mapping:
-                tc_type = type_mapping[token_strip.lower()]
-            elif any(k in token_strip for k in type_mapping):
-                # 处理带有"测试"后缀的情况，如"功能测试"
-                for k, v in type_mapping.items():
-                    if k in token_strip:
-                        tc_type = v
-                        break
+        tc_name = re.sub(r'\*\*', '', title_match.group(1)).strip(" #:")
 
         def find_id(text):
             match = re.search(r'[A-Za-z]+(?:-[A-Za-z]+)*-\d+', text)
@@ -126,30 +103,15 @@ def parse_test_cases_from_markdown(md_text: str, start_index: int = 1) -> dict:
                 return match.group(0)
             return None
 
-        tc_id = find_id(header_text)
+        tc_id = find_id(tc_name)
         if not tc_id:
             tc_id = f"TC_{(start_index + len(test_cases)):0>3}"
-
-        # 从整个标题区域提取用例名称：去掉 ##/### 标记、方括号内容、加粗标记
-        name_text = re.sub(r'#{2,}\s*', '', header_text)
-        name_text = re.sub(r'\[.*?\]', '', name_text)
-        name_text = re.sub(r'\*\*', '', name_text).strip()
-        # 按行分割，过滤空行和纯 ID 行（大写+数字+连字符，无中文字符）
-        name_lines = []
-        for line in name_text.split('\n'):
-            line = line.strip()
-            if not line:
-                continue
-            if re.match(r'^[A-Z][A-Z0-9_-]*$', line) and not re.search(r'[一-鿿]', line):
-                continue
-            name_lines.append(line)
-        tc_name = ' '.join(name_lines).strip(" #:")
 
         tc = {
             "id": tc_id,
             "name": tc_name,
-            "priority": tc_priority or "P1",
-            "type": tc_type or "functional",
+            "priority": "P1",
+            "type": "functional",
             "precondition": "",
             "steps": "",
             "expected": "",
@@ -163,12 +125,11 @@ def parse_test_cases_from_markdown(md_text: str, start_index: int = 1) -> dict:
             m = re.search(pattern, text,  re.MULTILINE | re.DOTALL)
             return _replace_br(m.group(1).strip("*- ")) if m else default
 
-        # 如果 body 中有明确定义的字段，则覆盖 header 中的
-        body_priority = get_field(r'\*\*优先级\*\*[:：]\s*(.*)', seg)
+        body_priority = get_field(r'\*\*优先级\*\*[:：]\s*([^\n]*)', seg)
         if body_priority:
-            tc["priority"] = body_priority
+            tc["priority"] = body_priority.upper()
 
-        body_type = get_field(r'\*\*类型\*\*[:：]\s*(.*)', seg)
+        body_type = get_field(r'\*\*用例类型\*\*[:：]\s*([^\n]*)', seg)
         if body_type:
             # 同样对 body 中的类型进行映射
             body_type_lower = body_type.lower()
@@ -225,7 +186,7 @@ def parse_test_cases_from_markdown(md_text: str, start_index: int = 1) -> dict:
             test_cases.append(tc)
         else:
             if len(test_cases) > 0:
-                logger.warning(f"未找到测试步骤标题: {header_text}")
+                logger.warning(f"未找到测试步骤标题: {tc_name}")
 
     return {"test_cases": test_cases, "knowledge": knowledge}
 
