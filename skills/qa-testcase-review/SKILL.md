@@ -19,8 +19,8 @@ description: 审查当前需求生成的测试用例质量，检查完整性、�
 ## 前置条件
 在进入评审流程前，必须完成以下检查：
 
-1. **检查用例是否已生成**：检查 `prd/{feature-dir}/output/test-cases/` 目录是否存在且包含 `.md` 用例文件（不包括 `_progress.md` 和 `review-report.md`）。
-   - 若目录不存在或无任何用例文件，中止并提示：**"当前需求尚未生成测试用例，请先执行 `/qa-testcase-generation` 生成用例后再评审。"**
+1. **检查用例是否已生成**：读取 `prd/{feature-dir}/output/test-cases/_progress.md`，将“文件名”列作为唯一用例文件清单，并验证清单中至少存在一个状态为 `已完成` 且文件真实存在的条目。
+   - 若 `_progress.md` 不存在、清单为空或已完成文件不存在，中止并提示：**"当前需求没有可评审的已完成用例，请先执行 `/qa-testcase-generation` 生成或修复用例清单。"**
 
 2. **检查用例是否已全部完成**：检查 `prd/{feature-dir}/output/test-cases/_progress.md` 是否存在。
    - 若存在且有未完成模块（状态为 待生成 或 生成中），**必须询问用户**：
@@ -36,7 +36,7 @@ description: 审查当前需求生成的测试用例质量，检查完整性、�
    - 重新评审前，将旧的 `review-report.md` 备份为 `review-report-backup-{序号}.md`（如 `review-report-backup-001.md`，序号自动递增避免冲突）。
 
 ## 强制规则
-1. 逐个读取当前需求下的生成用例文件进行评审。
+1. 逐个读取 `_progress.md` 清单中状态为 `已完成` 的用例文件进行评审；不得扫描或读取清单外的 Markdown 文件。
 2. 默认只输出评审报告，不直接修改用例文件。
 3. 如果需要自动修复，必须先得到用户明确同意。
 4. 评审产出写入 `prd/{feature-dir}/output/test-cases/review-report.md`。
@@ -47,7 +47,7 @@ description: 审查当前需求生成的测试用例质量，检查完整性、�
 读取：
 - `prd/{feature-dir}/output/*-analysis.md`
 - `prd/{feature-dir}/output/test-cases/test-case-summary.md`
-- `prd/{feature-dir}/output/test-cases/` 下所有当前需求生成的用例文件
+- `prd/{feature-dir}/output/test-cases/_progress.md` 中状态为 `已完成` 的用例文件
 - `glossary/`：遇到不懂的业务概念，在该目录查找相关术语文件。
 
 ### Step 2：多维度评审

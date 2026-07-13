@@ -3,7 +3,6 @@
 <div align="center">
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-0.3.5-blue.svg)](https://github.com/run-noob/qa-testcase-workflow)
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Compatible-brightgreen.svg)](https://claude.ai/code)
 [![CodeBuddy](https://img.shields.io/badge/CodeBuddy-Compatible-orange.svg)](https://codebuddy.ai)
 
@@ -36,7 +35,6 @@
 
 - 产品需求测试用例设计与管理
 - PRD 文档分析与测试关注点提取
-- 存量用例变更影响分析
 - 测试用例质量评审
 - 用例库版本管理与归档
 
@@ -91,7 +89,7 @@ graph LR
 - **内容**：功能点清单、测试关注点、涉及模块、风险项、术语说明
 
 #### Step 2: 用例生成
-- **输入**：分析报告 + 变更差异报告
+- **输入**：PRD + 分析报告
 - **输出**：`prd/{feature-dir}/output/test-cases/*.md`
 - **内容**：按模块分类的结构化测试用例（含 P0-P3 优先级）
 

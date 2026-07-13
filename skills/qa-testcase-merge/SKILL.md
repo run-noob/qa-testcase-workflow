@@ -25,7 +25,7 @@ description: 将当前需求目录下的测试用例合并到全量用例库，�
 
 ## 前置条件
 优先检查：
-1. `prd/{feature-dir}/output/test-cases/` 下存在当前需求生成的用例文件。
+1. `prd/{feature-dir}/output/test-cases/_progress.md` 存在，且清单中状态为 `已完成` 的用例文件均真实存在。
 2. 存在 `prd/{feature-dir}/output/test-cases/review-report.md`。
 3. 评审结论为“通过”或“有条件通过且已修复完成”。
 
@@ -47,6 +47,7 @@ description: 将当前需求目录下的测试用例合并到全量用例库，�
 
 ### Phase A：生成合并计划（只读分析）
 读取：
+- `prd/{feature-dir}/output/test-cases/_progress.md`，并且只读取其中状态为 `已完成` 的用例文件；不得扫描或合并清单外的 Markdown 文件
 - `prd/{feature-dir}/output/test-cases/test-case-summary.md`
 - `prd/{feature-dir}/output/test-cases/review-report.md`（如存在）
 - `test-cases/index.md`
