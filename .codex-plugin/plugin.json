@@ -1,0 +1,40 @@
+{
+  "name": "qa-testcase-workflow",
+  "version": "0.4.6",
+  "description": "测试工程师测试用例管理的完整工作流自动化，支持 PRD 分析、用例生成、评审和归档",
+  "author": {
+    "name": "zengzhihua",
+    "email": "1036181341@qq.com",
+    "url": "https://github.com/run-noob"
+  },
+  "homepage": "https://github.com/run-noob/qa-testcase-workflow",
+  "repository": "https://github.com/run-noob/qa-testcase-workflow.git",
+  "license": "MIT",
+  "keywords": [
+    "qa",
+    "testing",
+    "test-case",
+    "test-management",
+    "workflow",
+    "automation",
+    "prd-analysis"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "QA 测试用例工作流",
+    "shortDescription": "PRD 分析、用例生成、评审与归档自动化",
+    "longDescription": "面向测试工程师的测试用例管理工作流，涵盖 PRD 分析、测试用例生成、质量评审和用例库归档。",
+    "developerName": "zengzhihua",
+    "category": "Productivity",
+    "capabilities": [
+      "Write"
+    ],
+    "websiteURL": "https://github.com/run-noob/qa-testcase-workflow",
+    "defaultPrompt": [
+      "分析退款需求的 PRD 并输出测试关注点。",
+      "为指定需求生成结构化测试用例。",
+      "执行完整 QA 测试用例工作流。"
+    ],
+    "brandColor": "#0F766E"
+  }
+}
