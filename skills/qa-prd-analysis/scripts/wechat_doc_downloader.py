@@ -108,6 +108,90 @@ class WechatDocDownloader:
         except Exception as e:
             print(f"cookie expired!")
         return False
+
+    def check_cookie_from_all_sources(self):
+        """检测所有渠道的 cookie 是否有效，返回汇总结果"""
+        results = {}
+
+        # 1. 主服务端
+        print("=" * 60)
+        print("🔍 开始检测各渠道 Cookie 有效性...")
+        print("=" * 60)
+        print()
+
+        # 主服务端
+        print("[1/3] 检测主服务端 (perf-storage.huya.info)...")
+        cookie_str = self._get_cookie_from_server()
+        if cookie_str:
+            valid = self._check_cookie(cookie_str)
+            results["主服务端"] = {"valid": valid, "cookie": cookie_str if valid else ""}
+            if valid:
+                print("  ✅ 主服务端 Cookie 有效")
+                self.cookie = cookie_str
+            else:
+                print("  ❌ 主服务端 Cookie 已失效")
+        else:
+            print("  ⚠️  主服务端无法获取 Cookie")
+            results["主服务端"] = {"valid": False, "cookie": ""}
+
+        # 备用服务端
+        print()
+        print("[2/3] 检测备用服务端 (uat3.huya.info)...")
+        cookie_str = self._get_cookie_from_backup_server()
+        if cookie_str:
+            valid = self._check_cookie(cookie_str)
+            results["备用服务端"] = {"valid": valid, "cookie": cookie_str if valid else ""}
+            if valid:
+                print("  ✅ 备用服务端 Cookie 有效")
+                if not self.cookie:
+                    self.cookie = cookie_str
+            else:
+                print("  ❌ 备用服务端 Cookie 已失效")
+        else:
+            print("  ⚠️  备用服务端无法获取 Cookie")
+            results["备用服务端"] = {"valid": False, "cookie": ""}
+
+        # 本地
+        print()
+        print("[3/3] 检测本地存储...")
+        cookie_path = os.path.join(os.path.expanduser("~"), ".qa-testcase-workflow", ".wechat_doc_cookies")
+        if os.path.exists(cookie_path):
+            with open(cookie_path, 'r') as f:
+                cookie_str = f.read().strip()
+            if cookie_str:
+                valid = self._check_cookie(cookie_str)
+                results["本地存储"] = {"valid": valid, "cookie": cookie_str if valid else "", "path": cookie_path}
+                if valid:
+                    print(f"  ✅ 本地存储 Cookie 有效 (路径: {cookie_path})")
+                    if not self.cookie:
+                        self.cookie = cookie_str
+                else:
+                    print(f"  ❌ 本地存储 Cookie 已失效 (路径: {cookie_path})")
+            else:
+                print(f"  ⚠️  本地存储文件为空 (路径: {cookie_path})")
+                results["本地存储"] = {"valid": False, "cookie": "", "path": cookie_path}
+        else:
+            print(f"  ⚠️  本地存储文件不存在 (路径: {cookie_path})")
+            results["本地存储"] = {"valid": False, "cookie": "", "path": cookie_path}
+
+        # 汇总
+        print()
+        print("=" * 60)
+        print("📊 检测结果汇总:")
+        print("=" * 60)
+        valid_count = sum(1 for r in results.values() if r["valid"])
+        for name, result in results.items():
+            status = "✅ 有效" if result["valid"] else "❌ 失效/不可用"
+            print(f"  {name}: {status}")
+        print()
+        if valid_count > 0:
+            print(f"🎉 共有 {valid_count} 个渠道的 Cookie 可用，下载功能正常")
+        else:
+            print("🚫 所有渠道的 Cookie 均不可用，请手动更新 Cookie 后重试")
+            print(f"   本地 Cookie 存放路径: {cookie_path}")
+        print("=" * 60)
+
+        return results
         
     def _get_auth_sid(self, doc_id):
         """获取 sid，用于后续导出请求"""
@@ -286,22 +370,50 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description="下载腾讯文档（wechat doc），支持 sheet/excel、doc/docx、pdf 格式"
     )
-    parser.add_argument(
+    subparsers = parser.add_subparsers(dest="command", help="可用命令")
+
+    # check-cookie 子命令
+    check_parser = subparsers.add_parser(
+        "check-cookie",
+        help="检测所有渠道的 Cookie 是否有效",
+    )
+
+    # download 子命令（默认行为）
+    download_parser = subparsers.add_parser(
+        "download",
+        help="下载腾讯文档",
+    )
+    download_parser.add_argument(
         "doc_url",
         help="腾讯企业微信在线文档 URL，以 https://doc.weixin.qq.com/ 开头",
     )
-    parser.add_argument(
+    download_parser.add_argument(
         "--output-dir", "-o",
         default=os.path.join(os.path.expanduser("~"), "Downloads"),
         help="下载文件保存目录（默认: ~/Downloads)",
     )
-    parser.add_argument(
+    download_parser.add_argument(
         "--to-markdown", "-m",
         action="store_true",
         help="下载后自动将文档转换为 Markdown 格式（需要 mineru 服务可用）",
     )
-    args = parser.parse_args()
+
+    # 兼容旧用法：直接传 URL 等同于 download 命令
+    if len(sys.argv) > 1 and not sys.argv[1].startswith("-") and sys.argv[1] not in subparsers.choices:
+        args = parser.parse_args(["download"] + sys.argv[1:])
+    else:
+        args = parser.parse_args()
+
     downloader = WechatDocDownloader()
+
+    if args.command == "check-cookie":
+        downloader.check_cookie_from_all_sources()
+        sys.exit(0)
+
+    if not args.command:
+        parser.print_help()
+        sys.exit(0)
+
     print(f"开始下载文档，URL: {args.doc_url}")
     download_path = downloader.download(args.doc_url, output_dir=args.output_dir)
     if not download_path:
