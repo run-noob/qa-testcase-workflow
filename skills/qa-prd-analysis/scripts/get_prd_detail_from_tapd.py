@@ -15,6 +15,9 @@ import argparse
 import json
 import logging
 import sys
+from html import unescape
+from urllib.parse import urlparse, urljoin
+
 try:
     import httpx
 except:
@@ -26,6 +29,7 @@ logger = logging.getLogger()
 
 TAPD_API_BASE = "https://hytapd.huya.info/proxy"
 TAPD_SIGN = os.environ.get("TAPD_SIGN", "")
+TAPD_IMAGE_BASE = "https://file.tapd.cn/"
 
 # 需要查询的字段
 DEFAULT_FIELDS = "id,name,status,owner,description,priority,iteration_id,created,modified,test_focus"
@@ -182,6 +186,153 @@ def sanitize_filename(name: str) -> str:
     return safe_name
 
 
+def extract_images_from_html(html_content: str) -> list:
+    """
+    从 HTML 内容中提取所有图片的 src 地址。
+
+    Args:
+        html_content: HTML 格式的描述内容
+
+    Returns:
+        list[dict]: 每项包含 original_src, full_url, filename
+    """
+    img_tags = re.findall(r'<img[^>]+src="([^"]+)"', html_content)
+    seen = set()
+    images = []
+    for src in img_tags:
+        src = unescape(src)
+        if src in seen:
+            continue
+        seen.add(src)
+        # 提取文件名
+        filename = os.path.basename(urlparse(src).path)
+        if not filename:
+            # 如果无法解析文件名，使用 hash 生成
+            filename = hashlib.md5(src.encode()).hexdigest()[:8] + ".png"
+        # 补全图片 URL：仅路径时添加 TAPD 图片域名
+        if not src.startswith(("http://", "https://")):
+            full_url = urljoin(TAPD_IMAGE_BASE, src)
+        else:
+            full_url = src
+        images.append({
+            "original_src": src,
+            "full_url": full_url,
+            "filename": filename,
+        })
+    return images
+
+
+def get_image_download_url(
+    workspace_id: str,
+    image_path: str,
+    timeout: float = 15.0,
+) -> str | None:
+    """
+    通过 TAPD 代理 API 获取单张图片的临时下载链接（有效期 300s）。
+
+    Args:
+        workspace_id: 项目空间 ID
+        image_path: 图片路径，如 /tfl/captures/2026-07/xxx.png
+        timeout: 请求超时时间（秒）
+
+    Returns:
+        str | None: 临时下载链接，失败返回 None
+    """
+    url = f"{TAPD_API_BASE}/files/get_image"
+    params = {
+        "workspace_id": workspace_id,
+        "image_path": image_path,
+    }
+    headers = get_headers()
+    try:
+        response = httpx.get(url, params=params, headers=headers, timeout=timeout)
+        response.raise_for_status()
+        data = response.json()
+        if data.get("status") != 1:
+            logger.warning(f"获取图片下载链接失败: {data.get('info', '未知错误')}")
+            return None
+        attachment = data.get("data", {}).get("Attachment", {})
+        download_url = attachment.get("download_url", "")
+        if not download_url:
+            logger.warning(f"API 返回空下载链接: image_path={image_path}")
+            return None
+        logger.info(f"获取图片下载链接成功: {attachment.get('filename', image_path)}")
+        return download_url
+    except Exception as e:
+        logger.warning(f"请求图片下载链接异常: {e}, image_path={image_path}")
+        return None
+
+
+def download_images(
+    images: list,
+    images_dir: str,
+    workspace_id: str,
+    timeout: float = 30.0,
+) -> dict:
+    """
+    下载图片到本地目录。
+
+    先通过 TAPD API 获取临时下载链接（有效期 300s），再下载图片。
+
+    Args:
+        images: extract_images_from_html 返回的图片列表
+        images_dir: 本地图片保存目录（绝对路径）
+        workspace_id: 项目空间 ID，用于获取图片下载链接
+        timeout: 单张图片下载超时时间（秒）
+
+    Returns:
+        dict: original_src -> local_relative_path 的映射
+              下载失败时映射值回退为 original_src
+    """
+    os.makedirs(images_dir, exist_ok=True)
+    image_map = {}
+    for img in images:
+        local_path = os.path.join(images_dir, img["filename"])
+        # 先通过 API 获取临时下载链接
+        download_url = get_image_download_url(workspace_id, img["original_src"])
+        if not download_url:
+            logger.warning(f"无法获取图片下载链接: {img['original_src']}，跳过")
+            image_map[img["original_src"]] = img["original_src"]
+            continue
+        try:
+            response = httpx.get(download_url, timeout=timeout)
+            response.raise_for_status()
+            with open(local_path, "wb") as f:
+                f.write(response.content)
+            logger.info(f"图片已下载: {img['filename']} ({len(response.content)} bytes)")
+            image_map[img["original_src"]] = f"images/{img['filename']}"
+        except Exception as e:
+            logger.warning(f"图片下载失败: {img['filename']}, 错误: {e}")
+            image_map[img["original_src"]] = img["original_src"]
+    return image_map
+
+
+def convert_html_images_to_markdown(html_content: str, image_map: dict) -> str:
+    """
+    将 HTML 中的 <img> 标签替换为 Markdown 图片语法。
+
+    Args:
+        html_content: HTML 格式的描述内容
+        image_map: download_images 返回的图片映射
+
+    Returns:
+        str: 替换后的内容
+    """
+    def replace_img(match):
+        tag = match.group(0)
+        src_match = re.search(r'src="([^"]+)"', tag)
+        if not src_match:
+            return ""
+        original_src = unescape(src_match.group(1))
+        local_path = image_map.get(original_src, original_src)
+        # 获取 alt 文本，无则留空
+        alt_match = re.search(r'alt="([^"]*)"', tag)
+        alt = alt_match.group(1) if alt_match else ""
+        return f'\n\n![{alt}]({local_path})\n\n'
+
+    return re.sub(r'<img[^>]*/?>', replace_img, html_content)
+
+
 def build_story_markdown(story: dict) -> str:
     """
     根据需求详情生成 Markdown 内容。
@@ -226,26 +377,44 @@ def build_story_markdown(story: dict) -> str:
     return "\n".join(lines)
 
 
-def save_story_output(story: dict, output_dir: str, output_format="md") -> str:
+def save_story_output(
+    story: dict,
+    output_dir: str,
+    workspace_id: str = "",
+    output_format="md",
+) -> str:
     """
     将需求详情保存到输出目录。
 
-    生成两个文件：
-    - {name}.md: 需求基本信息的 Markdown 文件
-    - {name}.json: 需求完整数据的 JSON 文件
+    如果 description 包含图片引用，会自动下载图片到 images/ 子目录，
+    并将 HTML <img> 标签替换为 Markdown 图片语法。
 
     Args:
         story: 需求详情字典
         output_dir: 输出目录路径
-        output_format: 输出格式
+        workspace_id: 项目空间 ID，用于下载图片
+        output_format: 输出格式（"md" 或 "json"）
 
     Returns:
-        tuple: (md_path, json_path) 生成的文件路径
+        str: 生成的文件路径
     """
     os.makedirs(output_dir, exist_ok=True)
 
     story_name = story.get("name", "unknown_story")
     safe_name = "tapd-" + sanitize_filename(story_name)
+
+    # 处理 description 中的图片
+    description = story.get("description", "")
+    if description and workspace_id:
+        images = extract_images_from_html(description)
+        if images:
+            logger.info(f"发现 {len(images)} 张图片引用，开始下载...")
+            images_dir = os.path.join(output_dir, "images")
+            image_map = download_images(images, images_dir, workspace_id)
+            # 更新 story 的 description，将 HTML <img> 替换为 Markdown
+            story = dict(story)  # 浅拷贝，避免修改原始数据
+            story["description"] = convert_html_images_to_markdown(description, image_map)
+            logger.info(f"图片处理完成：{len(image_map)} 张")
 
     # 保存 Markdown 文件
     if output_format == "md":
@@ -321,7 +490,7 @@ def main():
             return None
         # 输出到目录（如果指定）
         if args.output_dir:
-            output_path = save_story_output(story, args.output_dir)
+            output_path = save_story_output(story, args.output_dir, workspace_id)
             print(f"需求正文已保存至文件: {output_path}")
         else:
             # 友好的控制台输出
