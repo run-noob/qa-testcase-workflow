@@ -4,7 +4,7 @@ from pathlib import Path
 
 try:
     from openpyxl import Workbook
-    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 except:
     raise EnvironmentError("当前python环境尚未安装openpyxl，请先执行python -m pip install openpyxl")
 
@@ -214,7 +214,10 @@ def convert_markdown_cases_to_excel(input_dir: str, output_path: str) -> str:
     Returns:
         生成的 Excel 文件路径。
     """
-    input_path = Path(input_dir)
+    # Use one absolute base path throughout. Case files are resolved while
+    # reading _progress.md, so a relative input path previously broke
+    # md_file.relative_to(input_path) during module-name construction.
+    input_path = Path(input_dir).resolve()
     if not input_path.is_dir():
         raise ValueError(f"输入路径不是有效的目录: {input_dir}")
 
@@ -232,15 +235,27 @@ def convert_markdown_cases_to_excel(input_dir: str, output_path: str) -> str:
     }
 
     headers = ["ID", "模块", "优先级", "类型", "标题", "前置条件", "步骤", "预期", "测试数据", "备注"]
-    header_font = Font(bold=True, size=11)
-    header_fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
+    header_font = Font(bold=True, size=11, color="FFFFFF")
+    header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
     wrap_alignment = Alignment(wrap_text=True, vertical="top")
+    header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    border_side = Side(style="thin", color="D9E2F3")
+    cell_border = Border(
+        left=border_side,
+        right=border_side,
+        top=border_side,
+        bottom=border_side,
+    )
+
+    ws.sheet_view.showGridLines = False
+    ws.row_dimensions[1].height = 28
 
     for col_idx, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col_idx, value=header)
         cell.font = header_font
         cell.fill = header_fill
-        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.alignment = header_alignment
+        cell.border = cell_border
 
     row = 2
     global_index = 1
@@ -292,11 +307,13 @@ def convert_markdown_cases_to_excel(input_dir: str, output_path: str) -> str:
 
     for col_idx in range(1, len(headers) + 1):
         ws.column_dimensions[ws.cell(row=1, column=col_idx).column_letter].width = \
-            [14, 22, 8, 8, 30, 30, 50, 50, 18, 22][col_idx - 1]
+            [14, 28, 10, 10, 34, 40, 40, 42, 28, 36][col_idx - 1]
 
     for r in range(2, row):
         for c in range(1, len(headers) + 1):
             ws.cell(row=r, column=c).alignment = wrap_alignment
+            ws.cell(row=r, column=c).border = cell_border
+        ws.row_dimensions[r].height = 90
 
     last_col = chr(64 + len(headers))
     ws.auto_filter.ref = f"A1:{last_col}{row - 1}"
