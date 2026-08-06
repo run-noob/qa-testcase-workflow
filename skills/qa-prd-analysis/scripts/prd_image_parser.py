@@ -362,6 +362,10 @@ def _get_api_key_and_url():
     anthropic_api_key = os.environ.get("ANTHROPIC_AUTH_TOKEN")
     if anthropic_api_key:
         return anthropic_base_url, anthropic_api_key
+    raise RuntimeError(
+        "图片解析需要模型凭证：请配置 OPENAI_API_KEY（可选 OPENAI_BASE_URL），"
+        "或配置 ANTHROPIC_AUTH_TOKEN（可选 ANTHROPIC_BASE_URL）。"
+    )
 
 def _openai_responses_call(
     model: str,
@@ -1220,7 +1224,8 @@ def main() -> int:
             custom_prompt=args.custom_prompt,
         )
         return 0
-    except:
+    except Exception as exc:  # pylint: disable=broad-except
+        print(f"[ERROR] 图片解析失败: {exc}", file=sys.stderr)
         return 1
 
 
