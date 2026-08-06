@@ -103,9 +103,19 @@ def parse_test_cases_from_markdown(md_text: str, start_index: int = 1) -> dict:
                 return match.group(0)
             return None
 
-        tc_id = find_id(tc_name)
-        if not tc_id:
-            tc_id = f"TC_{(start_index + len(test_cases)):0>3}"
+        # --- 用例编号提取（三级回退，向后兼容）---
+        # Tier 1: 新格式 — 从 **用例编号** 字段提取
+        case_id_match = re.search(r'\*\*用例编号\*\*[:：][^\S\n]*([^\n]+)', seg)
+        if case_id_match and case_id_match.group(1).strip():
+            tc_id = case_id_match.group(1).strip()
+        else:
+            # Tier 2: 旧格式 — 从标题中提取编号，并清理标题
+            tc_id = find_id(tc_name)
+            if tc_id:
+                tc_name = re.sub(r'\s*' + re.escape(tc_id) + r'\s*', '', tc_name).strip()
+            else:
+                # Tier 3: 兜底 — 自动生成
+                tc_id = f"TC_{(start_index + len(test_cases)):0>3}"
 
         tc = {
             "id": tc_id,
