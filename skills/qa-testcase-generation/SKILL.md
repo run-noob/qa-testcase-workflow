@@ -129,19 +129,14 @@ description: 基于 PRD 及其分析报告，生成需求的测试用例、覆�
 
 ### Step 4：转换为 Excel 文件
 
-
-#### 4.1 转换脚本
-使用 `skills/qa-testcase-generation/scripts/markdown_case_convert_to_excel.py` 执行转换。
-
-#### 4.2 使用方式
-- 所有的辅助脚本都存放在本技能目录的 `scripts/` 下。
+- 所有的辅助skill脚本都存放在本技能目录`{skill_dir}`的 `scripts/` 下。
 - 在执行任何脚本之前，你必须先获取本 `SKILL.md` 所在的绝对路径，并将其作为基准路径来定位 `scripts/` 目录。
 - **执行示例**：如果本 `SKILL.md` 路径为 `/path/to/my-skill/SKILL.md`，则你应当执行 `/path/to/my-skill/scripts/process.py`。
 
 推荐命令：
 ```bash
 # 指定输入目录和输出路径
-python scripts/markdown_case_convert_to_excel.py prd/{feature-dir}/output/test-cases/ -o prd/{feature-dir}/output/test-cases.xlsx
+python {skill_dir}/scripts/markdown_case_convert_to_excel.py prd/{feature-dir}/output/test-cases/ -o prd/{feature-dir}/output/test-cases.xlsx
 ```
 参数说明：
 - `input-dir`: 必填, 要转excel的用例目录，绝对路径

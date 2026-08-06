@@ -34,7 +34,8 @@ def list_completed_case_files(input_path: Path) -> list[Path]:
     seen = set()
     root = input_path.resolve()
     for columns in rows:
-        relative_name, status = columns[2], columns[3]
+        relative_name = columns[2].strip().strip('`')
+        status = columns[3].strip().strip("`")
         if status != "已完成":
             continue
         case_path = (input_path / relative_name).resolve()

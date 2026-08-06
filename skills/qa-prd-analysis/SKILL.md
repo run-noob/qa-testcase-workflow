@@ -65,16 +65,13 @@ description: 分析 prd/{feature-dir} 下的 PRD 文档，输出结构化需求�
 
 ### Step 2：预处理 PRD
 #### 脚本执行规范
-- 所有的辅助脚本都存放在本技能目录的 `scripts/` 下。
+- 所有的辅助脚本都存放在本技能目录`{skill_dir}`的 `scripts/` 下。
 - 在执行任何脚本之前，你必须先获取本 `SKILL.md` 所在的绝对路径，并将其作为基准路径来定位 `scripts/` 目录。
 - **执行示例**：如果本 `SKILL.md` 路径为 `/path/to/my-skill/SKILL.md`，则你应当执行 `/path/to/my-skill/scripts/process.py`。
 
 #### TAPD 需求详情获取辅助脚本
 
 当用户直接提供了 TAPD 需求的 URL 链接（而非本地 PRD 文件），说明需要从 TAPD 平台在线拉取需求详情，必须先调用本脚本获取需求数据并生成本地 PRD 文件，再继续后续分析。
-
-脚本路径：
-- `scripts/get_prd_detail_from_tapd.py`
 
 适用场景：
 - 用户输入的是 TAPD 链接，例如 `https://www.tapd.cn/tapd_fe/58049171/story/detail/1158049171001607427`
@@ -84,7 +81,7 @@ description: 分析 prd/{feature-dir} 下的 PRD 文档，输出结构化需求�
 推荐命令：
 
 ```bash
-python scripts/get_prd_detail_from_tapd.py \
+python {skill_dir}/scripts/get_prd_detail_from_tapd.py \
   "https://www.tapd.cn/tapd_fe/58049171/story/detail/1158049171001607427" \
   --output-dir prd/{feature-dir}
 ```
@@ -109,9 +106,6 @@ python scripts/get_prd_detail_from_tapd.py \
 
 当 PRD 正文中引用了 `https://doc.weixin.qq.com/` 域名下的腾讯企业微信在线文档链接，说明关键信息在在线文档上，需要将这些在线文档下载到本地再纳入需求分析。
 
-脚本路径：
-- `scripts/wechat_doc_downloader.py`
-
 适用场景：
 - PRD 正文中出现了 `https://doc.weixin.qq.com/sheet/...` 或 `https://doc.weixin.qq.com/doc/...` 等在线文档链接
 - 在线文档包含了需求功能描述、数据字段定义、流程图说明等 PRD 正文未覆盖的关键信息
@@ -120,7 +114,7 @@ python scripts/get_prd_detail_from_tapd.py \
 推荐命令：
 
 ```bash
-python scripts/wechat_doc_downloader.py \
+python {skill_dir}/scripts/wechat_doc_downloader.py \
   "https://doc.weixin.qq.com/sheet/e3_AbYA7wb9AAYCNoSNuQCISQ0aTj0ej" \
   --output-dir prd/{feature-dir}
   --to-markdown
@@ -140,9 +134,6 @@ python scripts/wechat_doc_downloader.py \
 
 当需求目录下的 PRD 文档为非 Markdown 格式（如 `.docx`、`.xlsx`、`.pptx`、`.pdf`等）时，必须先使用转换脚本将其转为 Markdown，再读取转换后的 `.md` 文件进行分析。
 
-脚本路径：
-- `scripts/doc_convert_to_markdown.py`
-
 适用场景：
 - PRD 主文档为 `.docx`、`.pdf`、`.pptx`、`.xlsx` 或图片格式
 - 需求目录中不存在同名 `.md` 文件，仅存在二进制/Office 格式文档
@@ -151,7 +142,7 @@ python scripts/wechat_doc_downloader.py \
 推荐命令：
 
 ```bash
-python scripts/doc_convert_to_markdown.py \
+python {skill_dir}/scripts/doc_convert_to_markdown.py \
   prd/{feature-dir}/{feature-name}.docx
   --parse-images
 ```
@@ -191,9 +182,6 @@ python scripts/doc_convert_to_markdown.py \
 
 无论是否支持视觉能力，图片都仅作为 UI 参考；与 PRD 正文冲突时以正文为准，并记录矛盾点。
 
-脚本路径：
-- `scripts/prd_image_parser.py`
-
 图片解析脚本适用场景（仅当前模型不支持视觉能力时）：
 - PRD 中有 UI 原型图、流程图、架构图、页面截图
 - Markdown 正文对图片说明不足，需要从视觉内容补全组件与交互信息
@@ -202,7 +190,7 @@ python scripts/doc_convert_to_markdown.py \
 推荐命令：
 
 ```bash
-python scripts/prd_image_parser.py \
+python {skill_dir}/scripts/prd_image_parser.py \
   --prd-file prd/{feature-dir}/{feature-name}.md \
   --embed
 ```
