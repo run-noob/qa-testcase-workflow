@@ -102,11 +102,7 @@ def fetch_story_detail(
     timeout: float = 30.0,
 ) -> dict:
     """
-    调用 TAPD API 获取需求详情。
-
-    认证方式优先级：
-    1. TAPD_ACCESS_TOKEN 环境变量存在时，使用 Basic Auth（个人访问令牌）
-    2. 否则使用 TAPD_SIGN 环境变量 + SHA256 签名认证
+    使用 TAPD_SIGN 环境变量 + SHA256 签名认证，调用 TAPD API 获取需求详情。
 
     Args:
         workspace_id: 项目空间 ID

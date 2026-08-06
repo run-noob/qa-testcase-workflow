@@ -34,7 +34,7 @@ description: 将当前需求目录下的测试用例合并到全量用例库，�
 - 先提示用户回到 `/qa-testcase-review` 修复问题。
 
 ## 强制规则
-1. 任务开始前先读取 `glossary/`、`test-cases/index.md`（如有）。
+1. 任务开始前先读取 `test-cases/index.md`（如有）。
 2. 先产出合并计划，再请求用户确认，不要直接改全量用例库。
 3. 只在用户明确确认后，才允许修改 `test-cases/` 和归档 `prd/{feature-dir}/`。
 4. 合并时必须确保用例 ID 唯一；如冲突，必须重新编号并记录映射关系。

@@ -45,3 +45,5 @@ __pycache__/
 
 *.pyc
 
+# QA workflow personal custom instructions (do not commit)
+.qa-testcase-workflow.local/

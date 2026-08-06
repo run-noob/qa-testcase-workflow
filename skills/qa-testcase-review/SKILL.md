@@ -48,7 +48,6 @@ description: 审查当前需求生成的测试用例质量，检查完整性、�
 - `prd/{feature-dir}/output/*-analysis.md`
 - `prd/{feature-dir}/output/test-cases/test-case-summary.md`
 - `prd/{feature-dir}/output/test-cases/_progress.md` 中状态为 `已完成` 的用例文件
-- `glossary/`：遇到不懂的业务概念，在该目录查找相关术语文件。
 
 ### Step 2：多维度评审
 

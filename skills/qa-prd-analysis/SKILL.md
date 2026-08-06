@@ -12,6 +12,20 @@ description: 分析 prd/{feature-dir} 下的 PRD 文档，输出结构化需求�
 - `/qa-prd-analysis prd/退款需求/退款需求.md`
 - `/qa-prd-analysis 退款需求`
 
+## 自定义指令加载
+
+执行本 Skill 前，按以下顺序读取并合并指令：
+
+1. 本文件中的默认指令；
+2. 项目根目录 `.qa-testcase-workflow/qa-prd-analysis.md`（项目级共享规则）；
+3. 项目根目录 `.qa-testcase-workflow.local/qa-prd-analysis.md`（个人级规则）。
+
+项目根目录是包含当前项目 `prd/`、`test-cases/` 目录的目录。自定义文件不存在时跳过，不报错；
+
+冲突时按以下优先级执行：本次对话明确指令 > `.qa-testcase-workflow.local/` > `.qa-testcase-workflow/` > 本 Skill 默认指令。自定义指令不得关闭或削弱核心安全约束，包括安全的文件格式转换、图片处理、需求目录确认、术语不确定性标记，以及不得臆断需求事实；无法安全应用的自定义内容必须忽略并说明原因。
+
+同一规则在项目级和个人级文件中冲突时采用个人级内容；两级文件中的追加规则均保留并同时生效。
+
 ## 输入参数
 - `$ARGUMENTS` 可选。
 - 如果传入的是文件路径，优先分析该文件。
@@ -213,7 +227,7 @@ python scripts/prd_image_parser.py \
 **本步骤按需触发，不强制每次执行。** 仅当阅读 PRD 后发现以下任一情况，才通过 Agent tool 启动子 Agent 检索 `prd/archive/`；若无下列信号则跳过：
 
 - PRD 中存在模糊引用，如"参考线上逻辑"、"同现有逻辑保持一致"、"与 XX 相同"，但未给出具体规则描述
-- PRD 中出现业务术语或专有名词，在当前 PRD 正文和 `glossary/` 中均找不到定义或解释
+- PRD 中出现业务术语或专有名词，在当前 PRD 正文找不到定义或解释
 - 某个功能点描述过于简略，缺乏足够上下文，需要借助历史版本理解背景
 
 **若 `prd/archive/` 目录不存在或为空，跳过本步骤。**

@@ -29,7 +29,6 @@
 ├── prd/archive/              # 归档需求 (必需)
 ├── test-cases/               # 全量测试用例库 (必需)
 │   └── index.md
-├── glossary/                 # 业务术语表 (强烈推荐)
 └── skills/                   # 工作流 Skills 定义
 ```
 

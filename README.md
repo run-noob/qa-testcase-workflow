@@ -152,7 +152,7 @@ git clone https://github.com/run-noob/qa-testcase-workflow.git
 
 ```bash
 # 自动创建所有必需目录
-mkdir -p prd/archive test-cases glossary standards
+mkdir -p prd/archive test-cases
 ```
 
 ### 更新插件
@@ -208,6 +208,12 @@ cat prd/退款需求/output/test-cases/review-report.md
 
 ```
 项目根目录/
+├── .qa-testcase-workflow/             # 团队共享自定义指令（提交 Git）
+│   ├── qa-prd-analysis.md
+│   └── qa-testcase-generation.md
+├── .qa-testcase-workflow.local/      # 个人自定义指令（加入 .gitignore）
+│   ├── qa-prd-analysis.md
+│   └── qa-testcase-generation.md
 ├── prd/                           # 需求文档目录
 │   ├── {feature-dir}/                # 单个需求目录（✅ 必需）
 │   │   ├── {feature-name}.md         # 主 PRD 文档，通常与目录同名
@@ -220,20 +226,30 @@ cat prd/退款需求/output/test-cases/review-report.md
 │       └── YYYY-MM-DD-{feature}/
 │
 ├── test-cases/                    # 全量测试用例库（✅ 必需）
-│   ├── index.md                   # 用例库总索引
-│   └── {module}/                  # 模块目录
-│       ├── index.md
-│       └── {feature}-cases.md
-│
-├── glossary/                      # 业务术语表（🔶 强烈推荐）
-│   ├── business-terms.md
-│   └── technical-terms.md
-│
-└── standards/                     # 测试规范文档（💡 推荐）
-    ├── test-case-template.md
-    └── review-checklist.md
+   ├── index.md                   # 用例库总索引
+   └── {module}/                  # 模块目录
+       ├── index.md
+       └── {feature}-cases.md
 
 
+
+
+```
+
+### 自定义 Skill 指令
+
+`qa-prd-analysis` 和 `qa-testcase-generation` 会在执行前依次读取默认指令、`.qa-testcase-workflow/{skill-name}.md`、`.qa-testcase-workflow.local/{skill-name}.md`。后读取的规则优先级更高；本次对话中的明确指令优先级最高。自定义规则不能关闭文件安全、数据真实性、目录确认、用户确认等核心约束，且每个 Skill 只读取与自身名称完全匹配的文件。
+
+团队规则示例：
+
+```markdown
+# PRD 分析自定义指令
+
+## 覆盖默认规则
+- 接口文档优先级高于原型图。
+
+## 追加规则
+- 权限功能必须同时分析页面权限和接口权限。
 ```
 
 ---

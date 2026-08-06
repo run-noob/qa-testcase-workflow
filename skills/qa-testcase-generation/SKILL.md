@@ -11,6 +11,20 @@ description: 基于 PRD 及其分析报告，生成需求的测试用例、覆�
 建议调用示例：
 - `/qa-testcase-generation 退款需求`
 
+## 自定义指令加载
+
+执行本 Skill 前，按以下顺序读取并合并指令：
+
+1. 本文件中的默认指令；
+2. 项目根目录 `.qa-testcase-workflow/qa-testcase-generation.md`（项目级共享规则）；
+3. 项目根目录 `.qa-testcase-workflow.local/qa-testcase-generation.md`（个人级规则）。
+
+项目根目录是包含当前项目 `prd/`、`test-cases/` 目录的目录。自定义文件不存在时跳过，不报错；
+
+冲突时按以下优先级执行：本次对话明确指令 > `.qa-testcase-workflow.local/` > `.qa-testcase-workflow/` > 本 Skill 默认指令。自定义指令不得关闭或削弱核心安全约束，包括不得直接修改全量用例库、必须遵守确认与断点恢复流程、不得臆造测试数据，以及必须保留必要的完整业务流程校验；无法安全应用的自定义内容必须忽略并说明原因。
+
+同一规则在项目级和个人级文件中冲突时采用个人级内容；两级文件中的追加规则均保留并同时生效。
+
 ## 输入参数
 - `$ARGUMENTS` 可选。
 - 可传需求名、目标模块名或分析文件线索。
