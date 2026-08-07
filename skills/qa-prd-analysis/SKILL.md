@@ -69,6 +69,16 @@ description: 分析 prd/{feature-dir} 下的 PRD 文档，输出结构化需求�
 - 在执行任何脚本之前，你必须先获取本 `SKILL.md` 所在的绝对路径，并将其作为基准路径来定位 `scripts/` 目录。
 - **执行示例**：如果本 `SKILL.md` 路径为 `/path/to/my-skill/SKILL.md`，则你应当执行 `/path/to/my-skill/scripts/process.py`。
 
+#### 沙箱网络权限受限恢复（强制）
+
+对需要访问外部服务的脚本（包括 TAPD 获取、腾讯文档下载、在线转换和图片下载），先按常规权限执行一次。若失败日志包含下列任一网络受限信号，判定为沙箱网络限制，而非业务数据或认证错误：
+
+- `nodename nor servname provided, or not known`
+- `httpx.ConnectError`、`httpcore.ConnectError`、`Network is unreachable`
+- DNS 解析失败、域名无法解析、连接被沙箱阻止等明确网络错误
+
+判定后必须立即用**相同命令和参数**发起一次带网络权限的重试
+
 #### TAPD 需求详情获取辅助脚本
 
 当用户直接提供了 TAPD 需求的 URL 链接（而非本地 PRD 文件），说明需要从 TAPD 平台在线拉取需求详情，必须先调用本脚本获取需求数据并生成本地 PRD 文件，再继续后续分析。
@@ -296,3 +306,4 @@ python {skill_dir}/scripts/prd_image_parser.py \
 - PRD 缺少核心章节
 - 图片或附件缺失
 - 模块术语/缩写无法确认
+- 外部服务首次请求出现网络受限信号：先请求开启网络权限并使用原命令重试；仅在授权被拒绝或权限重试失败后报告阻塞原因
