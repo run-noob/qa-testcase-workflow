@@ -127,7 +127,7 @@ description: 基于 PRD 及其分析报告，生成需求的测试用例、覆�
 
 新增、重命名或拆分用例文件时，必须同步更新 `_progress.md` 的“文件名”列，确保清单路径唯一且对应文件真实存在。
 
-### Step 4：转换为 Excel 文件
+### Step 4：转换为 Excel 或 xmind 文件
 
 - 所有的辅助skill脚本都存放在本技能目录`{skill_dir}`的 `scripts/` 下。
 - 在执行任何脚本之前，你必须先获取本 `SKILL.md` 所在的绝对路径，并将其作为基准路径来定位 `scripts/` 目录。
@@ -137,10 +137,15 @@ description: 基于 PRD 及其分析报告，生成需求的测试用例、覆�
 ```bash
 # 指定输入目录和输出路径
 python {skill_dir}/scripts/markdown_case_convert_to_excel.py prd/{feature-dir}/output/test-cases/ -o prd/{feature-dir}/output/test-cases.xlsx
+
+# 转换为 XMind（与 Excel 使用同一份 _progress.md 和 Markdown 用例）
+python {skill_dir}/scripts/markdown_case_convert_to_xmind.py prd/{feature-dir}/output/test-cases/ -o prd/{feature-dir}/output/test-cases.xmind
 ```
 参数说明：
 - `input-dir`: 必填, 要转excel的用例目录，绝对路径
 - `-o`: 输出的excel用例文件路径（默认 `testcases.xlsx`），包含以下列：ID、模块、优先级、类型、标题、前置条件、步骤、预期、测试数据、备注
+
+XMind 导出仅展示优先级、用例标题、前置条件、测试步骤和预期结果；优先级与标题合并为用例节点，步骤和预期结果分别合并为单个多行节点。
 
 ### Step 5：生成测试用例汇总文件
 

@@ -198,6 +198,11 @@ ls prd/退款需求/output/test-cases/
 
 # 评审报告
 cat prd/退款需求/output/test-cases/review-report.md
+
+# 导出为 XMind（使用已完成用例清单）
+python skills/qa-testcase-generation/scripts/markdown_case_convert_to_xmind.py \
+  prd/退款需求/output/test-cases/ \
+  -o prd/退款需求/output/test-cases.xmind
 ```
 
 ---
