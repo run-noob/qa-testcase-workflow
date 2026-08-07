@@ -215,10 +215,15 @@ python skills/qa-testcase-generation/scripts/markdown_case_convert_to_xmind.py \
 项目根目录/
 ├── .qa-testcase-workflow/             # 团队共享自定义指令（提交 Git）
 │   ├── qa-prd-analysis.md
-│   └── qa-testcase-generation.md
+│   ├── qa-testcase-generation.md
+│   ├── analysis-template.md            # 可选：覆盖 PRD 分析模板
+│   ├── case-standards.md               # 可选：覆盖用例编写标准
+│   ├── case-template.md                # 可选：覆盖功能用例模板
+│   └── api-template.md                 # 可选：覆盖 API 用例模板
 ├── .qa-testcase-workflow.local/      # 个人自定义指令（加入 .gitignore）
 │   ├── qa-prd-analysis.md
-│   └── qa-testcase-generation.md
+│   ├── qa-testcase-generation.md
+│   └── case-template.md                # 可选：个人模板，优先于团队模板
 ├── prd/                           # 需求文档目录
 │   ├── {feature-dir}/                # 单个需求目录（✅ 必需）
 │   │   ├── {feature-name}.md         # 主 PRD 文档，通常与目录同名
@@ -244,6 +249,18 @@ python skills/qa-testcase-generation/scripts/markdown_case_convert_to_xmind.py \
 ### 自定义 Skill 指令
 
 `qa-prd-analysis` 和 `qa-testcase-generation` 会在执行前依次读取默认指令、`.qa-testcase-workflow/{skill-name}.md`、`.qa-testcase-workflow.local/{skill-name}.md`。后读取的规则优先级更高；本次对话中的明确指令优先级最高。自定义规则不能关闭文件安全、数据真实性、目录确认、用户确认等核心约束，且每个 Skill 只读取与自身名称完全匹配的文件。
+
+这两个 Skill 读取模板、标准或参考类 Markdown 资源时，会按以下优先级选择一个完整文件：
+
+```text
+.qa-testcase-workflow.local/{resource-path}
+> .qa-testcase-workflow/{resource-path}
+> skills/{skill-name}/{resource-path}
+```
+
+资源按相对于 Skill 目录的路径精确匹配并采用整文件覆盖，不进行内容合并。例如，个人级 `.qa-testcase-workflow.local/case-template.md` 会覆盖团队级 `.qa-testcase-workflow/case-template.md` 和内置 `skills/qa-testcase-generation/case-template.md`；如果个人级文件不存在，则自动回退到团队级或内置文件。未来若 Skill 增加 `references/example.md`，自定义文件也应放在 `.qa-testcase-workflow.local/references/example.md` 或 `.qa-testcase-workflow/references/example.md`。
+
+出于执行安全考虑，自定义资源覆盖仅适用于 `.md` 文件，不覆盖 `SKILL.md` 或 `scripts/` 中的脚本。
 
 团队规则示例：
 

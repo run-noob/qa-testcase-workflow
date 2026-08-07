@@ -25,6 +25,24 @@ description: 基于 PRD 及其分析报告，生成需求的测试用例、覆�
 
 同一规则在项目级和个人级文件中冲突时采用个人级内容；两级文件中的追加规则均保留并同时生效。
 
+## 自定义资源加载
+
+本 Skill 或生效的自定义指令需要读取模板、标准或参考类 Markdown 文件时，先解析资源的实际路径，再读取文件。设资源相对于本 Skill 目录的路径为 `{resource-path}`，按以下优先级选择第一个存在的普通文件：
+
+1. `{project-root}/.qa-testcase-workflow.local/{resource-path}`（个人级资源）；
+2. `{project-root}/.qa-testcase-workflow/{resource-path}`（项目级共享资源）；
+3. `{skill-dir}/{resource-path}`（本 Skill 内置资源）。
+
+资源文件采用**整文件覆盖**，不得把不同层级的同名文件合并。自定义目录不存在或对应资源不存在时静默回退；三个位置均不存在时，中止当前依赖该资源的步骤并说明缺失的 `{resource-path}`。解析后记录选中的实际路径，后续所有同名资源引用（包括资源文件之间的引用）都必须重新按本规则解析。
+
+`{resource-path}` 必须是相对路径，不得包含 `..`，自定义目录应保持其相对于 Skill 目录的路径结构。例如，当前内置资源可由 `.qa-testcase-workflow/{resource-name}` 或 `.qa-testcase-workflow.local/{resource-name}` 覆盖：
+
+- `case-standards.md`
+- `case-template.md`
+- `api-template.md`
+
+此机制仅适用于 `.md` 模板、标准和参考文件，不适用于 `SKILL.md`、`scripts/` 下的脚本或其他可执行文件；脚本始终从 `{skill-dir}/scripts/` 加载。
+
 ## 输入参数
 - `$ARGUMENTS` 可选。
 - 可传需求名、目标模块名或分析文件线索。
@@ -91,8 +109,9 @@ description: 基于 PRD 及其分析报告，生成需求的测试用例、覆�
 - **主 PRD 文档**（按 1.1 规则确定）
 - `prd/{feature-dir}/output/{feature-name}-analysis.md` — 分析报告，提供提取的功能点、测试关注点和业务梳理
 - `prd/{feature-dir}/output/{feature-name}-clarifications.md` — 澄清项清单，若仍有未确认问题，优先询问用户
-- `skills/qa-testcase-generation/case-standards.md`
-- `skills/qa-testcase-generation/case-template.md`
+- 按“自定义资源加载”规则解析并读取 `case-standards.md`
+- 按“自定义资源加载”规则解析并读取 `case-template.md`
+- 生成 API 测试用例时，按同一规则解析并读取 `api-template.md`
 
 > **说明**：分析报告侧重功能点提取和测试关注点梳理，信息经过抽象和归纳；主 PRD 文档包含完整的需求描述、业务上下文、交互流程和细节规则。两者结合才能支撑高质量的用例编写——PRD 提供业务全貌，分析报告提供测试视角的结构化指引。
 
