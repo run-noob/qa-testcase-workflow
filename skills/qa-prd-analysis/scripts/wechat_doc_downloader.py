@@ -47,28 +47,27 @@ class WechatDocDownloader:
 
     def _load_cookies(self):
         """获取并校验cookies"""
-        print(f"当前脚本依赖企业微信文档域名下的cookie信息")
-        cookies = self._get_cookie_from_server()
+        print(f"当前脚本依赖企业微信文档域名下的cookie信息，依次从本地或服务端接口查询可用cookie")
+        cookies = self._get_cookie_from_local()
+        if not self._check_cookie(cookies):
+            cookies = self._get_cookie_from_server()
         if not self._check_cookie(cookies):
             cookies = self._get_cookie_from_backup_server()
         if not self._check_cookie(cookies):
-            cookies = self._get_cookie_from_local()
-        self.cookie = cookies
-        if not self.cookie or not self._check_cookie():
             raise Exception("所有Cookie已失效，无法继续进行，请手动更新Cookie后重试")
+        self.cookie = cookies
 
     @staticmethod
     def _get_cookie_from_local():
         # 从本地读取
         cookie_path = os.path.join(os.path.expanduser("~"), ".qa-testcase-workflow", ".wechat_doc_cookies")
-        print(f"尝试获取本地目录存储的cookie，cookie path: {cookie_path}")
+        print(f"尝试获取本地目录存储的cookie，cookie path: {cookie_path}，cookie格式为分号分隔的字符串")
         if os.path.exists(cookie_path):
             with open(cookie_path, 'r') as f:
                 cookie_str = f.read().strip()
             return cookie_str
         else:
-            print(f"请用浏览器打开企业微信文档url，登录获取cookie然后保存到{cookie_path},cookie格式为分号分隔的字符串")
-            exit(1)
+            print(f"本地企微文档cookie文件{cookie_path}不存在")
     
     @staticmethod
     def _get_cookie_from_server():
@@ -102,6 +101,8 @@ class WechatDocDownloader:
             print("failed to get cookie from backup server")
 
     def _check_cookie(self, cookie_str=None):
+        if not cookie_str:
+            return False
         try:
             self._get_banner_info(cookie_str)
             return True
