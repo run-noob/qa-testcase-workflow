@@ -28,7 +28,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 
 TAPD_API_BASE = "https://hytapd.huya.info/proxy"
-TAPD_SIGN = os.environ.get("TAPD_SIGN", "JQJ9AuSyoZOYZ0CW1k2UxFMfoDzUCcssauto_bug")
+TAPD_SIGN = os.environ.get("TAPD_SIGN", "")
 TAPD_IMAGE_BASE = "https://file.tapd.cn/"
 
 # 需要查询的字段
