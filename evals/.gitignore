@@ -1,6 +1,10 @@
 .runs/
 .runs-smoke/
+__pycache__
 reports/*.json
 reports/*.html
 reports/*.xml
+# Generated evaluation reports; keep the directory placeholder tracked.
+reports/*
+!reports/.gitkeep
 .promptfoo/
