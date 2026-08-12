@@ -1,0 +1,4 @@
+interface:
+  display_name: "QA 测试用例生成"
+  short_description: "基于 PRD 和分析报告生成结构化测试用例与覆盖汇总"
+  default_prompt: "使用 $qa-testcase-generation 为指定需求生成结构化测试用例。"

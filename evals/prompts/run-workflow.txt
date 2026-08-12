@@ -1,0 +1,20 @@
+你正在执行 QA 工作流的端到端评测。
+
+需求目录已经由用户明确确认为：`{{feature_dir}}`。
+主 PRD 文件已经由用户明确确认为：`{{prd_file}}`。
+
+请严格执行以下任务：
+
+1. 完整读取并遵循 `skills/qa-prd-analysis/SKILL.md`，分析上述 PRD。
+2. 完整读取并遵循 `skills/qa-testcase-generation/SKILL.md`，基于 PRD、分析报告和澄清清单生成测试用例。
+3. 当前是非交互评测，不要停下来询问用户。所有无法从 PRD 确定的内容，写入独立的澄清清单；生成用例时以“待确认”“条件性执行”或“覆盖缺口”保留，不得臆造确定预期。
+4. 必须直接审阅 PRD 引用的图片，并遵循“用户明确指示 > PRD 正文 > 图片 UI 参考”的优先级。
+5. 分析阶段必须分别生成：
+   - `prd/{{feature_dir}}/output/优惠券系统小细节优化-analysis.md`
+   - `prd/{{feature_dir}}/output/优惠券系统小细节优化-clarifications.md`
+6. 用例阶段必须生成 `_progress.md`、模块用例 Markdown 文件和 `test-case-summary.md`。
+7. 本次只生成 Markdown 产物，不生成 Excel 或 XMind。
+8. 不得修改项目根目录下的全量 `test-cases/` 用例库。
+9. 完成后自行核对产物路径、用例编号、汇总数量和覆盖矩阵的一致性。
+
+请完成全部文件写入后再结束任务。

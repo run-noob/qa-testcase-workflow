@@ -1,0 +1,4 @@
+interface:
+  display_name: "QA PRD 分析"
+  short_description: "分析 PRD 并提取功能点、测试关注点、风险与澄清项"
+  default_prompt: "使用 $qa-prd-analysis 分析指定需求的 PRD 并输出测试关注点。"

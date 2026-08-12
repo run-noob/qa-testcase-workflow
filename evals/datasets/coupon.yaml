@@ -1,0 +1,11 @@
+- description: 优惠券系统小细节优化-完整端到端黄金样本
+  vars:
+    case_id: coupon-001
+    feature_dir: 优惠券系统小细节优化
+    prd_file: prd/优惠券系统小细节优化/优惠券系统小细节优化.md
+  metadata:
+    domain: CouponOps
+    source: TAPD-1153211454001615554
+    stages:
+      - qa-prd-analysis
+      - qa-testcase-generation

@@ -1,0 +1,4 @@
+interface:
+  display_name: "QA 用例合并归档"
+  short_description: "将评审通过的需求用例安全合并到全量库并归档 PRD"
+  default_prompt: "使用 $qa-testcase-merge 合并指定需求的测试用例并归档 PRD。"

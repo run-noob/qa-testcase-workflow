@@ -24,6 +24,7 @@ $RECYCLE_BIN/
 # IDE 和编辑器
 # ===========================================
 __pycache__/
+node_modules/
 # VSCode
 .vscode/
 !.vscode/settings.json

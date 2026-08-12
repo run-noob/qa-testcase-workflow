@@ -12,7 +12,7 @@
 ## Skills 列表
 | Skill | 命令 | 功能 |
 |-------|------|------|
-| 总控工作流 | `/qa-testcase-workflow` | 一键执行完整的 5 步流程 |
+| 总控工作流 | `/qa-testcase-workflow` | 一键执行完整的 4 步业务流程 |
 | PRD 分析 | `/qa-prd-analysis` | 分析 PRD 文档，提取功能点和测试关注点 |
 | 用例生成 | `/qa-testcase-generation` | 基于分析结果自动生成测试用例 |
 | 用例评审 | `/qa-testcase-review` | 自动评审用例质量，生成评审报告 |

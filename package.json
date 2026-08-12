@@ -1,0 +1,16 @@
+{
+  "name": "qa-testcase-workflow",
+  "private": true,
+  "scripts": {
+    "eval:validate": "PROMPTFOO_CONFIG_DIR=evals/.promptfoo promptfoo validate config -c evals/promptfooconfig.yaml",
+    "eval:validate:llm": "PROMPTFOO_CONFIG_DIR=evals/.promptfoo promptfoo validate config -c evals/promptfooconfig.llm.yaml",
+    "eval:coupon": "PROMPTFOO_CONFIG_DIR=evals/.promptfoo promptfoo eval -c evals/promptfooconfig.yaml --no-cache -o evals/reports/coupon-results.json -o evals/reports/coupon-report.html -o evals/reports/coupon-results.junit.xml",
+    "eval:coupon:llm": "PROMPTFOO_CONFIG_DIR=evals/.promptfoo promptfoo eval -c evals/promptfooconfig.llm.yaml --no-cache -o evals/reports/coupon-llm-results.json -o evals/reports/coupon-llm-report.html -o evals/reports/coupon-llm-results.junit.xml",
+    "eval:replay": "node evals/replay-eval.js",
+    "eval:view": "PROMPTFOO_CONFIG_DIR=evals/.promptfoo promptfoo view",
+    "test:evals": "node --test evals/tests/*.test.js"
+  },
+  "devDependencies": {
+    "promptfoo": "0.122.0"
+  }
+}

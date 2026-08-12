@@ -1,0 +1,4 @@
+interface:
+  display_name: "QA 测试用例工作流"
+  short_description: "编排 PRD 分析、用例生成、质量评审及合并归档流程"
+  default_prompt: "使用 $qa-testcase-workflow 为指定需求执行完整测试用例工作流。"

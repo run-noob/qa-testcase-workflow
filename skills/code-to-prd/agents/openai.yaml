@@ -1,0 +1,4 @@
+interface:
+  display_name: "代码转产品说明"
+  short_description: "从前端组件代码提炼交互逻辑、状态变化、页面结构与用户流程"
+  default_prompt: "使用 $code-to-prd 分析指定前端组件并生成产品说明文档。"

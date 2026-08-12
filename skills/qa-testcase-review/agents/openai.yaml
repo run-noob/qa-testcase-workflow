@@ -1,0 +1,4 @@
+interface:
+  display_name: "QA 测试用例评审"
+  short_description: "评审测试用例的完整性、准确性、规范性、设计质量与覆盖情况"
+  default_prompt: "使用 $qa-testcase-review 评审指定需求的测试用例质量。"

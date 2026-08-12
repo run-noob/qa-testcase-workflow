@@ -1,0 +1,53 @@
+description: qa-prd-analysis 与 qa-testcase-generation 优惠券需求 LLM 覆盖评测
+
+providers:
+  - id: file://providers/qa_workflow_provider.py
+    label: current-qa-workflow
+    config:
+      fixtureProject: fixtures/coupon-project
+      runsDir: .runs
+      timeoutSeconds: 1200
+      timeout: 1260000
+      heartbeatSeconds: 30
+      model: gpt-5.6-luna
+
+prompts:
+  - file://prompts/run-workflow.txt
+
+tests:
+  - file://datasets/coupon.yaml
+
+defaultTest:
+  threshold: 0.85
+  assertScoringFunction: file://assertions/scoring.js
+  assert:
+    - type: javascript
+      value: file://assertions/artifact-contract.js
+      metric: artifact_contract
+    - type: javascript
+      value: file://assertions/analysis-facts.js
+      metric: core_fact_recall
+    - type: javascript
+      value: file://assertions/forbidden-claims.js
+      metric: forbidden_claim_control
+    - type: javascript
+      value: file://assertions/clarifications.js
+      metric: clarification_recall
+    - type: javascript
+      value: file://assertions/llm-testcase-coverage.js
+      metric: testcase_coverage
+    - type: javascript
+      value: file://assertions/testcase-quality.js
+      metric: testcase_quality
+    - type: javascript
+      value: file://assertions/consistency.js
+      metric: cross_artifact_consistency
+
+derivedMetrics:
+  - name: semantic_score
+    value: >-
+      core_fact_recall * 0.30 + forbidden_claim_control * 0.15 +
+      clarification_recall * 0.15 + testcase_coverage * 0.25 +
+      testcase_quality * 0.075 + cross_artifact_consistency * 0.075
+
+sharing: false

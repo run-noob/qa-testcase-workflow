@@ -101,7 +101,7 @@ description: QA测试用例工作流总控，自动编排执行PRD分析、用�
 
 **触发条件**：step1 产物不存在，或用户指定重新执行。
 
-**执行**：读取 `skills/qa-prd-analysis/SKILL.md`，按照其执行流程（Step 1～5）完成 PRD 分析，产出 `prd/{feature-dir}/output/{feature-name}-analysis.md` 及 `*-clarifications.md`（如有澄清项）。
+**执行**：读取 `skills/qa-prd-analysis/SKILL.md`，按照其完整执行流程完成 PRD 分析，产出 `prd/{feature-dir}/output/{feature-name}-analysis.md` 及 `*-clarifications.md`（如有澄清项）。
 
 **完成后检查**：
 - 验证 `prd/{feature-dir}/output/*-analysis.md` 已产出。
@@ -158,7 +158,7 @@ description: QA测试用例工作流总控，自动编排执行PRD分析、用�
 
 **失败处理**：见 [错误处理策略](#错误处理策略)。
 
-### Step 5：完成汇报
+### 完成汇报
 
 所有步骤执行完毕后，向用户输出最终汇总：
 

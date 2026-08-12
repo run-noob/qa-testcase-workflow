@@ -53,7 +53,7 @@ description: 基于 PRD 及其分析报告，生成需求的测试用例、覆�
 1. 存在PRD分析报告 `prd/{feature-dir}/output/{feature-name}-analysis.md`及 澄清项`{feature-name}-clarifications.md`（如有）
    - **若分析报告不存在**，你需要自行完成 PRD 分析：
      1. 读取 `skills/qa-prd-analysis/SKILL.md` 了解分析流程与输出规范。
-     2. 按照其执行流程（Step 1～5）对当前 PRD 进行分析。
+     2. 按照其完整执行流程对当前 PRD 进行分析。
      3. 验证产物已成功生成后，再继续执行本技能的后续流程。
    - 生成完成后，验证 分析报告 已成功产出，若仍未生成则中止并报错。
 2. **检查是否已有用例**：检查 `prd/{feature-dir}/output/test-cases/` 目录是否已存在。

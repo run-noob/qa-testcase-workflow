@@ -1,0 +1,6 @@
+.runs/
+.runs-smoke/
+reports/*.json
+reports/*.html
+reports/*.xml
+.promptfoo/
